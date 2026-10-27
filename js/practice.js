@@ -2,6 +2,7 @@
 /* ================= 练习与错题本 ================= */
 let PS=null; // {mode,bankId,filters,qids,idx,answers:{qid:{content,correct}},startTs}
 const PKEY='shutibao_practice';
+const RECITE_ONLY_KEY='shutibao_recite_only';
 function savePS(){if(PS)localStorage.setItem(PKEY+'_'+currentUser().id,JSON.stringify(PS));}
 function loadPS(){try{return JSON.parse(localStorage.getItem(PKEY+'_'+currentUser().id));}catch(e){return null;}}
 function clearPS(){localStorage.removeItem(PKEY+'_'+currentUser().id);}
@@ -78,9 +79,10 @@ route('#/practice/setup/:bankId',bankId=>{
         <label><input type="radio" name="pmode" value="recite"> 背题模式</label>
       </div>
       <div class="hint" style="margin-top:6px">背题模式：直接展示答案与解析，不判分、不记录答题历史</div>
-      <div style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap">
+      <div style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">
         <label class="small" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="autoNext"> 答对自动进入下一题</label>
         <label class="small" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="shuffleOpts"> 选项乱序</label>
+        <label class="switch"><input type="checkbox" id="reciteOnly"><span class="track"></span><span>背题模式只显示正确选项</span></label>
       </div>
       <h4 style="margin:16px 0 10px">筛选条件（且关系）</h4>
       ${filterPanelHTML([bankId],f,true)}
@@ -99,10 +101,12 @@ route('#/practice/setup/:bankId',bankId=>{
   };
   ['fType','fResult','fJudge','fChap','fDiff'].forEach(id=>$('#'+id).onchange=update);update();
   $('#autoNext').checked=localStorage.getItem('shutibao_autonext')==='1';
+  $('#reciteOnly').checked=localStorage.getItem(RECITE_ONLY_KEY)==='1';
   $('#startP').onclick=()=>{
     const ff=readFilters();const mode=document.querySelector('input[name=pmode]:checked').value;
     const autoNext=$('#autoNext').checked; const shuffleOpts=$('#shuffleOpts').checked;
     localStorage.setItem('shutibao_autonext',autoNext?'1':'0');
+    localStorage.setItem(RECITE_ONLY_KEY,$('#reciteOnly').checked?'1':'0');
     let qs=bankQuestions(bankId).filter(q=>matchFilters(q,u.id,ff));
     if(mode==='rand')qs=shuffle(qs);else qs.sort((a,c)=>a.order-c.order);
     const qids=qs.map(q=>q.id);
@@ -303,18 +307,25 @@ route('#/practice/run',()=>{
 function renderRecite(q,bank){
   const bid=PS.bankId;
   const last=PS.idx>=PS.qids.length-1;
+  const onlyCorrect=localStorage.getItem(RECITE_ONLY_KEY)==='1';
   const ansText=q.type==='judge'?q.answer:q.type==='blank'?splitAccepted(q.answer).join(' / '):(q.answer||'');
   const backHash=bid?'#/bank/'+bid:'#/banks';
-  render(`<div class="btn-row" style="margin-bottom:10px;justify-content:space-between">
+  const optionHTML=(q.type==='single'||q.type==='multi')
+    ? q.options.filter(o=>!onlyCorrect||String(q.answer).includes(o.k)).map(o=>`<div class="opt${String(q.answer).includes(o.k)?' right':''}"><span class="k">${o.k}</span><span>${esc(o.t)}</span></div>`).join('')
+    : '';
+  render(`<div class="btn-row" style="margin-bottom:10px;justify-content:space-between;gap:10px">
       <button class="btn ghost" id="pExit">← 退出背题</button>
-      <span class="small muted">${esc(bank?bank.name:'')} · 背题模式</span>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <label class="switch"><input type="checkbox" id="reciteOnlyToggle" ${onlyCorrect?'checked':''}><span class="track"></span><span>仅显示正确选项</span></label>
+        <span class="small muted">${esc(bank?bank.name:'')} · 背题模式</span>
+      </div>
     </div>
     <div class="progress-line"><i style="width:${(PS.idx+1)/PS.qids.length*100}%"></i></div>
-    <div class="small muted" style="margin-bottom:10px">第 ${PS.idx+1} / ${PS.qids.length} 题 · 已直接展示答案，不判分</div>
+    <div class="small muted" style="margin-bottom:10px">第 ${PS.idx+1} / ${PS.qids.length} 题 · 已直接展示答案，不判分${onlyCorrect?' · 仅显示正确选项':''}</div>
     <div class="q-card">
       <div class="meta" style="display:flex;gap:6px;flex-wrap:wrap">${typeTag(q.type)}${diffTag(q.difficulty)}<span class="tag gray">${esc(q.chapter||'未设置章节')}</span></div>
       <div class="q-stem">${esc(q.stem)}</div>
-      ${(q.type==='single'||q.type==='multi')?q.options.map(o=>`<div class="opt${String(q.answer).includes(o.k)?' right':''}"><span class="k">${o.k}</span><span>${esc(o.t)}</span></div>`).join(''):''}
+      ${optionHTML}
       <div class="feedback ok" style="margin-top:10px"><strong>答案：${esc(ansText||'（略）')}</strong></div>
       <div class="analysis-box"><strong>解析：</strong>${esc(q.analysis||'暂无解析')}</div>
       <div class="btn-row" style="margin-top:16px">
@@ -324,6 +335,7 @@ function renderRecite(q,bank){
       </div>
     </div>`,backHash);
   $('#pExit').onclick=()=>{clearPS();PS=null;location.hash=backHash;};
+  $('#reciteOnlyToggle').onchange=e=>{localStorage.setItem(RECITE_ONLY_KEY,e.target.checked?'1':'0');dispatch();};
   $('#pPrev').onclick=()=>{if(PS.idx>0){PS.idx--;savePS();dispatch();}};
   $('#pNext').onclick=()=>{
     if(!last){PS.idx++;savePS();dispatch();}

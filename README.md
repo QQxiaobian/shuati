@@ -2,6 +2,35 @@
 
 PHP + MySQL 的多用户刷题系统：题库导入、五种练习方式、错题本、模拟考试（服务端判分防作弊）、搜题、题库分享与管理后台。数据集中保存在 MySQL 数据库中，多人共用、换设备自动同步。
 
+## 部署（Docker，推荐）
+
+只需一个 `docker-compose.yml`，无需手动 clone 代码或导入 SQL：首次启动时 Compose 会自动从 GitHub `docker` 分支下载源码构建镜像，并自动建库建表、创建默认管理员。需要已安装 Docker 与 Docker Compose v2。
+
+1. 新建一个目录，放入本仓库的 `docker-compose.yml`（也可直接下载）：
+
+   ```bash
+   curl -O https://raw.githubusercontent.com/QQxiaobian/shuati/docker/docker-compose.yml
+   ```
+2. 启动：
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+   首次会自动下载源码并构建镜像；以后直接 `docker compose up -d` 即可启动，无需重新下载。
+3. 浏览器访问 `http://服务器IP:8870`，默认管理员 `admin / admin123`（登录后请尽快修改密码）。
+4. 数据保存在 Docker 卷 `shutibao_db_data` 中，删除/重建容器不会丢失；仅 `docker compose down -v` 会清空。
+5. 需要自定义密码时，在同目录新建 `.env`：
+
+   ```dotenv
+   DB_PASS=你的数据库密码
+   ADMIN_PASSWORD=你的管理员初始密码
+   ```
+
+   修改 `ADMIN_PASSWORD` 只影响首次初始化，不会重置已有管理员密码。
+
+> 不安装 Docker 时，继续使用下方 phpStudy 方式；Docker 部署无需访问 `api/install.php`。
+
 ## 部署（phpStudy 环境）
 
 1. 安装并启动 **phpStudy**（https://phpstudy.cn 下载），在面板中启动 **Nginx/Apache** 与 **MySQL**。
@@ -58,6 +87,7 @@ PHP + MySQL 的多用户刷题系统：题库导入、五种练习方式、错�
 
 练习设置页选择「背题模式」后开始：
 - 每题直接展示正确答案（选择/判断题高亮正确选项）与解析；
+- 「只显示正确选项」开关：开启后隐藏错误选项，只保留正确答案，适合快速记忆；
 - 上一题 / 下一题自由翻阅，最后一题点「完成背题」结束；
 - 不判分、不写答题记录、不触错题回流，适合考前快速过题。
 
