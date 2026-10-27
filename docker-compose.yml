@@ -1,0 +1,46 @@
+name: shutibao
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASS:-shutibao123}
+      MYSQL_DATABASE: ${DB_NAME:-shutibao}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  app:
+    build:
+      # 直接从 GitHub 的 docker 分支拉取源码构建，无需手动 clone
+      context: https://github.com/QQxiaobian/shuati.git#docker
+      dockerfile: Dockerfile
+    image: shutibao:latest
+    restart: unless-stopped
+    ports:
+      - "8870:80"
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: ${DB_NAME:-shutibao}
+      DB_USER: root
+      DB_PASS: ${DB_PASS:-shutibao123}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      TZ: Asia/Shanghai
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:

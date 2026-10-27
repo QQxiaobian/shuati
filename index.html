@@ -124,6 +124,13 @@ tbody tr:hover td{background:#fafcfe}
 .filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
 .check-row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
 .check-row label{display:flex;gap:5px;align-items:center;font-size:13px;color:var(--ink-soft);cursor:pointer}
+.switch{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);cursor:pointer;user-select:none}
+.switch input{position:absolute;opacity:0;width:0;height:0}
+.switch .track{position:relative;width:38px;height:21px;border-radius:99px;background:#cdd6e1;transition:background .18s;flex:0 0 38px}
+.switch .track::after{content:"";position:absolute;top:2.5px;left:2.5px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(21,42,63,.25);transition:transform .18s}
+.switch input:checked+.track{background:var(--brand)}
+.switch input:checked+.track::after{transform:translateX(17px)}
+.switch input:focus-visible+.track{box-shadow:0 0 0 3px rgba(30,93,135,.18)}
 
 /* practice / exam */
 .q-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:24px 26px}
@@ -185,7 +192,7 @@ tbody tr:hover td{background:#fafcfe}
 <script src="js/core.js?v=4"></script>
 <script src="js/banks.js?v=2"></script>
 <script src="js/import.js?v=5"></script>
-<script src="js/practice.js?v=7"></script>
+<script src="js/practice.js?v=8"></script>
 <script src="js/exam.js?v=8"></script>
 <script src="js/search.js?v=3"></script>
 <script src="js/admin.js?v=3"></script>
