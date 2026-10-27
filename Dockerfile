@@ -1,16 +1,14 @@
-# 基础镜像可通过 --build-arg PHP_IMAGE=... 覆盖（compose 默认走 DaoCloud 镜像源）
-ARG PHP_IMAGE=php:8.2-apache
-FROM ${PHP_IMAGE}
+ARG NODE_IMAGE=node:24-alpine
+FROM ${NODE_IMAGE}
 
-# MySQL 扩展 + mbstring（后端判分用到 mb_* 函数）
-RUN docker-php-ext-install pdo_mysql mbstring
+WORKDIR /app
 
-# 启动时自动等待数据库、建库建表、创建默认管理员
-COPY docker/entrypoint.sh /usr/local/bin/shuati-entrypoint
-RUN chmod +x /usr/local/bin/shuati-entrypoint
+ENV NODE_ENV=production \
+    PORT=3000 \
+    DB_PATH=/data/shutibao.db
 
-COPY . /var/www/html/
-RUN chown -R www-data:www-data /var/www/html
+COPY . /app
+RUN mkdir -p /data
 
-ENTRYPOINT ["shuati-entrypoint"]
-CMD ["apache2-foreground"]
+EXPOSE 3000
+CMD ["node", "--no-warnings", "server.js"]

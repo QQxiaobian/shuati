@@ -28,7 +28,7 @@ function emptyDB(settings){
 async function api(path,opts){
   let r;
   try{r=await fetch('api/'+path,{credentials:'same-origin',...opts});}
-  catch(e){throw new Error('无法连接服务器，请确认 phpStudy 已启动');}
+  catch(e){throw new Error('无法连接服务器，请确认服务已启动');}
   const j=await r.json().catch(()=>({ok:false,error:'服务器响应异常（HTTP '+r.status+'）'}));
   if(r.status===401&&DB){DB.session=null;if(location.hash!=='#/login'&&location.hash!=='#/register'){location.hash='#/login';}}
   return j;
@@ -62,7 +62,7 @@ function saveDB(){ // 写穿透：防抖 350ms 合并高频修改（保持原有
 window.addEventListener('beforeunload',()=>{ // 关页面前尽力冲刷未推送的修改
   if(!saveTimer||!DB||!DB.session||!BASE)return;
   const d=buildDiff();if(!d)return;
-  try{navigator.sendBeacon('api/sync.php',new Blob([JSON.stringify(d)],{type:'application/json'}));}catch(e){}
+  try{navigator.sendBeacon('api/sync',new Blob([JSON.stringify(d)],{type:'application/json'}));}catch(e){}
 });
 async function pushDiff(){
   const d0=buildDiff();
@@ -75,8 +75,8 @@ async function pushDiff(){
     else jobs.push({[t]:v});});return jobs;};
   const upJobs=mkJobs(up);
   upJobs.sort((a,b)=>((a.banks||a.users||a.settings)?0:1)-((b.banks||b.users||b.settings)?0:1));
-  for(const u2 of upJobs){const r=await apiPost('sync.php',{upserts:u2,deletes:{}});if(!r.ok)throw new Error(r.error||'保存失败');}
-  for(const d2 of mkJobs(del)){const r=await apiPost('sync.php',{upserts:{},deletes:d2});if(!r.ok)throw new Error(r.error||'保存失败');}
+  for(const u2 of upJobs){const r=await apiPost('sync',{upserts:u2,deletes:{}});if(!r.ok)throw new Error(r.error||'保存失败');}
+  for(const d2 of mkJobs(del)){const r=await apiPost('sync',{upserts:{},deletes:d2});if(!r.ok)throw new Error(r.error||'保存失败');}
   baseline();
 }
 async function flushSave(){ // 立即推送未保存的修改（交卷/生成试卷前调用）
@@ -86,7 +86,7 @@ async function flushSave(){ // 立即推送未保存的修改（交卷/生成试
   await pushChain;
 }
 async function fullSync(){
-  const r=await apiGet('sync.php');
+  const r=await apiGet('sync');
   if(!r.ok)throw new Error(r.error||'同步失败');
   DB=r.db;DB.session={userId:r.user.id};baseline();
 }
@@ -325,7 +325,7 @@ function layout(content,active){
 }
 function bindLayout(){
   $$('.nav-item[data-h]').forEach(b=>b.onclick=()=>{location.hash=b.dataset.h;});
-  const lo=$('#logoutLink');if(lo)lo.onclick=()=>{apiPost('auth.php',{action:'logout'}).catch(()=>{}).finally(()=>{location.hash='#/login';location.reload();});};
+  const lo=$('#logoutLink');if(lo)lo.onclick=()=>{apiPost('auth',{action:'logout'}).catch(()=>{}).finally(()=>{location.hash='#/login';location.reload();});};
 }
 function render(html,active){$('#app').innerHTML=layout(html,active);bindLayout();window.scrollTo(0,0);}
 function renderRaw(html){$('#app').innerHTML=html;window.scrollTo(0,0);}
@@ -340,11 +340,11 @@ function dispatch(){
 async function boot(){
   renderRaw('<div class="auth-page"><div class="auth-card"><h1>刷题宝</h1><div class="sub">正在连接服务器…</div></div></div>');
   try{
-    const r=await apiGet('sync.php');
+    const r=await apiGet('sync');
     if(r.ok){DB=r.db;DB.session={userId:r.user.id};baseline();migrateLegacy();}
     else DB=emptyDB(r.settings);
   }catch(e){
-    renderRaw(`<div class="auth-page"><div class="auth-card"><h1>无法连接服务器</h1><div class="sub">${esc(e.message)}<br>请确认 phpStudy 已启动（Apache/Nginx + MySQL），且本站部署在 phpStudy 的网站目录中。</div><button class="btn primary lg" style="width:100%;justify-content:center" onclick="location.reload()">重新连接</button></div></div>`);
+    renderRaw(`<div class="auth-page"><div class="auth-card"><h1>无法连接服务器</h1><div class="sub">${esc(e.message)}<br>请确认刷题宝服务已启动。</div><button class="btn primary lg" style="width:100%;justify-content:center" onclick="location.reload()">重新连接</button></div></div>`);
     return;
   }
   window.addEventListener('hashchange',dispatch);dispatch();
@@ -367,7 +367,7 @@ route('#/login',()=>{
     if(!name||!pwd)return fail('请输入用户名和密码');
     $('#lgBtn').disabled=true;
     try{
-      const r=await apiPost('auth.php',{action:'login',username:name,pwd:hashPwd(pwd)});
+      const r=await apiPost('auth',{action:'login',username:name,pwd:hashPwd(pwd)});
       if(!r.ok)return fail(r.error||'登录失败');
       DB=r.db;DB.session={userId:r.user.id};baseline();migrateLegacy();
       if(r.user.mustChangePwd){location.hash='#/changepwd';toast('请修改临时密码后再使用系统','warn');}
@@ -401,7 +401,7 @@ route('#/register',()=>{
     if(nick&&(nick.length<1||nick.length>30))return fail('昵称 1–30 个字符');
     $('#rgBtn').disabled=true;
     try{
-      const r=await apiPost('auth.php',{action:'register',username:name,nickname:nick,pwd:hashPwd(p1)});
+      const r=await apiPost('auth',{action:'register',username:name,nickname:nick,pwd:hashPwd(p1)});
       if(!r.ok)return fail(r.error||'注册失败');
       toast('注册成功，请登录','ok');location.hash='#/login';
     }catch(e){fail(e.message);}
@@ -426,7 +426,7 @@ route('#/changepwd',()=>{
     if(p1!==p2)return fail('两次输入不一致');
     $('#cpBtn').disabled=true;
     try{
-      const r=await apiPost('auth.php',{action:'changepwd',old:u.mustChangePwd?'':hashPwd($('#cpOld').value),pwd:hashPwd(p1)});
+      const r=await apiPost('auth',{action:'changepwd',old:u.mustChangePwd?'':hashPwd($('#cpOld').value),pwd:hashPwd(p1)});
       if(!r.ok)return fail(r.error||'修改失败');
       toast('密码已修改，请重新登录','ok');
       setTimeout(()=>{location.hash='#/login';location.reload();},600);

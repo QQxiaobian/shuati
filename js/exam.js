@@ -83,7 +83,7 @@ route('#/exam/setup',()=>{
     $('#exGen').disabled=true;
     try{
       await flushSave();
-      const r=await apiPost('exam_create.php',{name:EX.name,banks:EX.banks,counts:EX.counts,scores:EX.scores,chaps:selChaps,diffs:selDiffs,duration:EX.duration,passPct:EX.passPct});
+      const r=await apiPost('exam/create',{name:EX.name,banks:EX.banks,counts:EX.counts,scores:EX.scores,chaps:selChaps,diffs:selDiffs,duration:EX.duration,passPct:EX.passPct});
       if(!r.ok){
         if(r.gaps){
           $('#exGap').innerHTML=`<div class="feedback bad" style="margin-top:10px"><strong>题量不足，无法生成：</strong>${r.gaps.map(g=>`${TYPES[g.t]} 需求 ${g.want} / 可用 ${g.have} / 缺口 ${g.want-g.have}`).join('；')}。请减少题量或放宽筛选。</div>`;
@@ -178,7 +178,7 @@ async function submitExam(rec,timeout){
   rec.status=timeout?'timeout':'submitted'; // 先本地锁定，防止重复点击
   try{
     await flushSave(); // 确保最新作答已上传，服务端按最新答案判分
-    const r=await apiPost('exam_submit.php',{recordId:rec.id});
+    const r=await apiPost('exam/submit',{recordId:rec.id});
     if(!r.ok)throw new Error(r.error||'交卷失败');
     await fullSync(); // 拉回判分结果与完整试卷（含答案解析，供成绩报告使用）
   }catch(e){
