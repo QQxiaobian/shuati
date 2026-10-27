@@ -2,7 +2,8 @@ name: shutibao
 
 services:
   db:
-    image: mysql:8.0
+    # 默认走 DaoCloud 镜像源，避免部分 NAS 的 docker.io 加速器返回 401
+    image: ${MYSQL_IMAGE:-docker.m.daocloud.io/library/mysql:8.0}
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASS:-shutibao123}
@@ -25,7 +26,8 @@ services:
       # 直接从 GitHub 的 docker 分支拉取源码构建，无需手动 clone
       context: https://github.com/QQxiaobian/shuati.git#docker
       dockerfile: Dockerfile
-    image: shutibao:latest
+      args:
+        PHP_IMAGE: ${PHP_IMAGE:-docker.m.daocloud.io/library/php:8.2-apache}
     restart: unless-stopped
     ports:
       - "8870:80"

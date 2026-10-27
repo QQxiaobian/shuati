@@ -28,6 +28,14 @@ PHP + MySQL 的多用户刷题系统：题库导入、五种练习方式、错�
    ```
 
    修改 `ADMIN_PASSWORD` 只影响首次初始化，不会重置已有管理员密码。
+6. 基础镜像默认走 DaoCloud 镜像源（`docker.m.daocloud.io`），避免部分 NAS 的 `docker.io` 加速器返回 401 导致构建失败。若该源不可用，可在 `.env` 中覆盖：
+
+   ```dotenv
+   PHP_IMAGE=docker.1ms.run/library/php:8.2-apache
+   MYSQL_IMAGE=docker.1ms.run/library/mysql:8.0
+   ```
+
+   也可以改回官方镜像 `php:8.2-apache` / `mysql:8.0`，前提是本机 Docker 镜像加速器可用。
 
 > 不安装 Docker 时，继续使用下方 phpStudy 方式；Docker 部署无需访问 `api/install.php`。
 
