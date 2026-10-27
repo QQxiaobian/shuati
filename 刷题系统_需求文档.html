@@ -1,0 +1,2866 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>刷题系统 · 产品需求文档</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #f2f4f7;
+    --paper: #ffffff;
+    --ink: #17212f;
+    --ink-soft: #334155;
+    --muted: #667085;
+    --line: #e3e8ef;
+    --line-strong: #cdd6e1;
+    --brand: #1e5d87;
+    --brand-deep: #123f5d;
+    --brand-soft: #e9f2f8;
+    --accent: #d97757;
+    --accent-soft: #fbeee8;
+    --green: #2f7d5c;
+    --green-soft: #eaf5ef;
+    --amber: #95651d;
+    --amber-soft: #fbf2df;
+    --red: #b54747;
+    --red-soft: #fbeaea;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 16px 44px rgba(21, 42, 63, .07);
+    --shadow-soft: 0 8px 24px rgba(21, 42, 63, .05);
+  }
+  html { scroll-behavior: smooth; scroll-padding-top: 28px; }
+  body {
+    margin: 0;
+    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 86% 8%, rgba(217, 119, 87, .09), transparent 26rem),
+      radial-gradient(circle at 10% 24%, rgba(30, 93, 135, .08), transparent 28rem),
+      var(--bg);
+    line-height: 1.72;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--brand); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  p { margin: 0 0 1em; }
+  ul, ol { margin: 0 0 1em; padding-left: 1.4em; }
+  li { margin: .35em 0; }
+  strong { color: var(--ink); }
+  code {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    font-size: .9em;
+    background: #f1f4f8;
+    border: 1px solid var(--line);
+    padding: .08em .35em;
+    border-radius: 5px;
+    color: var(--brand-deep);
+  }
+
+  /* Sidebar */
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: 286px;
+    padding: 30px 22px;
+    background: rgba(255, 255, 255, .78);
+    border-right: 1px solid var(--line);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+    overflow-y: auto;
+    z-index: 20;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark {
+    width: 44px; height: 44px; flex: 0 0 44px;
+    display: grid; place-items: center;
+    border-radius: 13px;
+    background: linear-gradient(145deg, var(--brand), var(--brand-deep));
+    color: #fff;
+    font-size: 20px;
+    font-weight: 700;
+    box-shadow: 0 8px 18px rgba(30, 93, 135, .24);
+  }
+  .brand strong { display: block; font-size: 17px; letter-spacing: .02em; }
+  .brand span { display: block; font-size: 11px; color: var(--muted); letter-spacing: .12em; margin-top: 2px; }
+  .nav-label {
+    font-size: 10px; letter-spacing: .16em; color: var(--muted);
+    text-transform: uppercase; margin: 0 0 8px 10px;
+  }
+  .nav { display: flex; flex-direction: column; gap: 3px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 11px;
+    border-radius: 9px;
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.35;
+    transition: background .16s ease, color .16s ease, transform .16s ease;
+  }
+  .nav a:hover { background: var(--brand-soft); color: var(--brand-deep); text-decoration: none; transform: translateX(2px); }
+  .nav a.active { background: var(--brand); color: #fff; box-shadow: 0 8px 18px rgba(30, 93, 135, .18); }
+  .nav a .n {
+    width: 20px; flex: 0 0 20px;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 12px; opacity: .65;
+  }
+  .nav a.active .n { opacity: .9; }
+  .side-footer {
+    margin-top: auto;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .side-footer strong { display: block; color: var(--ink); font-size: 12px; margin-bottom: 3px; }
+  .stage-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-right: 6px; vertical-align: 1px; }
+
+  /* Layout */
+  .main { margin-left: 286px; padding: 42px 54px 100px; }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+
+  /* Hero */
+  .hero {
+    position: relative;
+    overflow: hidden;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    padding: 48px 52px 38px;
+    box-shadow: var(--shadow);
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    right: -110px; top: -130px;
+    width: 390px; height: 390px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(30, 93, 135, .13), rgba(30, 93, 135, 0) 68%);
+    pointer-events: none;
+  }
+  .hero::after {
+    content: "";
+    position: absolute;
+    right: 42px; bottom: -56px;
+    width: 220px; height: 220px;
+    border-radius: 50%;
+    border: 1px dashed rgba(217, 119, 87, .28);
+    pointer-events: none;
+  }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--brand); font-weight: 700;
+    margin-bottom: 18px;
+  }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  .hero h1 {
+    position: relative; z-index: 1;
+    margin: 0 0 16px;
+    font-size: clamp(34px, 4.4vw, 56px);
+    line-height: 1.12;
+    letter-spacing: -.035em;
+    font-weight: 750;
+    color: var(--brand-deep);
+  }
+  .hero h1 em {
+    font-style: normal;
+    display: block;
+    font-size: .44em;
+    letter-spacing: .08em;
+    color: var(--ink);
+    font-weight: 650;
+    margin-top: 12px;
+  }
+  .lede {
+    position: relative; z-index: 1;
+    max-width: 780px;
+    font-size: 16px;
+    color: var(--ink-soft);
+    margin-bottom: 26px;
+  }
+  .hero-meta {
+    position: relative; z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    padding: 18px 0;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 24px;
+  }
+  .hero-meta span { display: block; font-size: 10.5px; color: var(--muted); letter-spacing: .08em; margin-bottom: 3px; }
+  .hero-meta strong { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .facts {
+    position: relative; z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .fact {
+    padding: 14px 15px;
+    background: #f7f9fb;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  }
+  .fact:hover { transform: translateY(-2px); border-color: #bfd1df; box-shadow: var(--shadow-soft); }
+  .fact b { display: block; font-size: 22px; line-height: 1.2; color: var(--brand); font-family: Georgia, serif; }
+  .fact span { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+  /* Sections */
+  .section {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 38px 44px;
+    margin-top: 26px;
+    box-shadow: 0 4px 18px rgba(21, 42, 63, .035);
+    scroll-margin-top: 24px;
+  }
+  .section-head { margin-bottom: 18px; }
+  .section-head h2 {
+    display: flex; align-items: baseline; gap: 12px;
+    margin: 0 0 6px;
+    font-size: 27px;
+    letter-spacing: -.02em;
+    line-height: 1.28;
+    color: var(--ink);
+  }
+  .sec-no {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: .1em;
+    font-weight: 700;
+    border-bottom: 1px solid rgba(217, 119, 87, .45);
+    padding-bottom: 2px;
+  }
+  .section-lead { color: var(--muted); font-size: 14px; margin: 0; max-width: 820px; }
+  .section h3 {
+    font-size: 18px;
+    margin: 30px 0 10px;
+    letter-spacing: -.01em;
+    line-height: 1.45;
+    color: var(--brand-deep);
+  }
+  .section h3:first-of-type { margin-top: 8px; }
+  .section h4 { font-size: 15px; margin: 22px 0 8px; color: var(--ink); }
+  .section p:last-child, .section ul:last-child, .section ol:last-child { margin-bottom: 0; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .card {
+    padding: 20px 22px;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: #fbfcfd;
+  }
+  .card h3, .card h4 { margin-top: 0; }
+  .card p:last-child, .card ul:last-child { margin-bottom: 0; }
+  .card.tint { background: var(--brand-soft); border-color: #d1e3ef; }
+  .card.accent { background: var(--accent-soft); border-color: #f0d6ca; }
+  .card.plain { background: #fff; }
+  .card-label {
+    display: inline-block;
+    font-size: 10px; letter-spacing: .12em;
+    color: var(--muted);
+    margin-bottom: 7px;
+    text-transform: uppercase;
+  }
+  .callout {
+    margin: 20px 0;
+    padding: 17px 20px;
+    border-left: 3px solid var(--accent);
+    background: #fff8f5;
+    border-radius: 0 10px 10px 0;
+    color: var(--ink-soft);
+    font-size: 13.5px;
+  }
+  .callout strong { color: var(--ink); }
+  .callout.blue { border-left-color: var(--brand); background: var(--brand-soft); }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; margin: 14px 0 20px; border: 1px solid var(--line); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 620px; }
+  th {
+    text-align: left;
+    background: #f7f9fc;
+    color: var(--ink);
+    font-weight: 650;
+    padding: 11px 13px;
+    border-bottom: 1px solid var(--line-strong);
+    white-space: nowrap;
+    font-size: 12px;
+    letter-spacing: .01em;
+  }
+  td {
+    padding: 11px 13px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+    color: var(--ink-soft);
+    line-height: 1.6;
+  }
+  tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: #fafcfe; }
+  td strong { color: var(--ink); }
+  td ul { margin: 0; padding-left: 1.1em; }
+  td li { margin: .12em 0; }
+  .nowrap { white-space: nowrap; }
+  .center { text-align: center; }
+
+  /* Tags */
+  .tag {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-size: 10.5px;
+    line-height: 1.5;
+    font-weight: 650;
+    letter-spacing: .02em;
+    white-space: nowrap;
+  }
+  .tag.p0 { background: var(--green-soft); color: var(--green); }
+  .tag.p1 { background: var(--amber-soft); color: var(--amber); }
+  .tag.out { background: #f1f3f6; color: var(--muted); }
+  .tag.blue { background: var(--brand-soft); color: var(--brand); }
+  .tag.red { background: var(--red-soft); color: var(--red); }
+  .tag.gray { background: #f1f3f6; color: var(--muted); }
+  .tag.accent { background: var(--accent-soft); color: #a75438; }
+
+  /* Flow */
+  .flow {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 16px 0 22px;
+  }
+  .flow-step {
+    flex: 1 1 130px;
+    min-width: 120px;
+    position: relative;
+    padding: 15px 16px 14px;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: #fbfcfd;
+  }
+  .flow-step b {
+    display: inline-grid; place-items: center;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--brand);
+    color: #fff;
+    font-size: 11px;
+    font-family: Georgia, serif;
+    margin-bottom: 7px;
+  }
+  .flow-step strong { display: block; font-size: 13px; margin-bottom: 3px; }
+  .flow-step span { display: block; font-size: 11.5px; color: var(--muted); line-height: 1.55; }
+  .flow-step:not(:last-child)::after {
+    content: "→";
+    position: absolute;
+    right: -9px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--line-strong);
+    font-size: 13px;
+    z-index: 1;
+  }
+  .flow.compact .flow-step { flex-basis: 100px; min-width: 100px; padding: 12px 13px; }
+  .flow.compact .flow-step span { font-size: 11px; }
+
+  /* Lists */
+  .clean-list { list-style: none; padding-left: 0; }
+  .clean-list li { position: relative; padding-left: 16px; }
+  .clean-list li::before { content: ""; position: absolute; left: 0; top: .72em; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+  .check-list { list-style: none; padding-left: 0; }
+  .check-list li { position: relative; padding-left: 24px; }
+  .check-list li::before { content: "✓"; position: absolute; left: 0; top: 0; color: var(--green); font-weight: 700; }
+  .minus-list { list-style: none; padding-left: 0; }
+  .minus-list li { position: relative; padding-left: 24px; color: var(--muted); }
+  .minus-list li::before { content: "—"; position: absolute; left: 4px; top: 0; color: var(--line-strong); font-weight: 700; }
+
+  /* Requirement blocks */
+  .req-block { margin-top: 34px; padding-top: 4px; border-top: 1px solid var(--line); }
+  .req-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 24px 0 6px; }
+  .req-id {
+    font-family: Georgia, serif;
+    font-size: 11px;
+    letter-spacing: .06em;
+    color: var(--brand);
+    background: var(--brand-soft);
+    border: 1px solid #d3e2ed;
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-weight: 700;
+  }
+  .req-head h3 { margin: 0; font-size: 20px; }
+  .req-sub { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+
+  /* Misc */
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  .divider { height: 1px; background: var(--line); margin: 24px 0; border: 0; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill {
+    display: inline-block;
+    padding: 4px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: #fff;
+    font-size: 11px;
+    color: var(--ink-soft);
+  }
+  .kbd {
+    font-family: Consolas, monospace;
+    font-size: 11px;
+    background: #f1f4f8;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 4px;
+  }
+  .footnote { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+  .assumption { color: var(--accent); font-size: 10.5px; font-weight: 600; }
+
+  /* Footer */
+  .doc-footer {
+    margin-top: 34px;
+    padding: 24px 8px 0;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 11.5px;
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  /* Interactive demo */
+  .demo {
+    border: 1px solid #cfd9e3;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 20px 50px rgba(21, 42, 63, .1);
+    margin-top: 4px;
+  }
+  .demo-topbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 15px;
+    background: #f6f8fa;
+    border-bottom: 1px solid var(--line);
+  }
+  .demo-dots { display: flex; gap: 5px; }
+  .demo-dots span { width: 7px; height: 7px; border-radius: 50%; background: #d4dbe4; }
+  .demo-dots span:first-child { background: #e8a88f; }
+  .demo-dots span:nth-child(2) { background: #e4c27a; }
+  .demo-dots span:nth-child(3) { background: #9fc4a9; }
+  .demo-title { font-size: 11.5px; color: var(--muted); letter-spacing: .03em; }
+  .demo-badge { margin-left: auto; font-size: 10px; color: var(--muted); background: #fff; border: 1px solid var(--line); padding: 2px 7px; border-radius: 999px; }
+  .demo-tabs { display: flex; gap: 0; padding: 0 12px; border-bottom: 1px solid var(--line); overflow-x: auto; background: #fff; }
+  .demo-tab {
+    appearance: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 12px 14px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .demo-tab:hover { color: var(--brand); }
+  .demo-tab.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 650; }
+  .demo-body { padding: 22px 24px 24px; background: #fff; }
+  .demo-panel { display: none; }
+  .demo-panel.active { display: block; animation: demoIn .22s ease; }
+  @keyframes demoIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+  .demo-panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+  .demo-panel-head h4 { margin: 0 0 3px; font-size: 16px; color: var(--ink); }
+  .demo-panel-head p { margin: 0; color: var(--muted); font-size: 12px; }
+  .demo-label { font-size: 11px; letter-spacing: .06em; color: var(--muted); margin: 16px 0 7px; text-transform: uppercase; }
+  .demo-hint { font-size: 11px; color: var(--muted); }
+  .demo-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--line); }
+  .demo-actions .demo-hint { margin-right: auto; }
+  .center-actions { justify-content: center; }
+
+  .btn {
+    appearance: none;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, transform .12s ease, box-shadow .15s ease;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: var(--brand); color: #fff; box-shadow: 0 5px 12px rgba(30, 93, 135, .18); }
+  .btn.primary:hover { background: var(--brand-deep); }
+  .btn.ghost { background: #fff; border-color: var(--line-strong); color: var(--ink-soft); }
+  .btn.ghost:hover { border-color: var(--brand); color: var(--brand); }
+  .btn.small { padding: 5px 10px; font-size: 11px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+  .stepper { display: flex; gap: 0; margin: 2px 0 20px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .step { flex: 1; display: flex; align-items: center; gap: 7px; padding: 9px 11px; font-size: 11px; color: var(--muted); background: #fbfcfd; border-right: 1px solid var(--line); }
+  .step:last-child { border-right: 0; }
+  .step b { display: inline-grid; place-items: center; width: 19px; height: 19px; flex: 0 0 19px; border-radius: 50%; border: 1px solid var(--line-strong); font-size: 10px; font-family: Georgia, serif; color: var(--muted); background: #fff; }
+  .step.active { background: var(--brand-soft); color: var(--brand-deep); font-weight: 600; }
+  .step.active b { border-color: var(--brand); background: var(--brand); color: #fff; }
+  .step.done b { border-color: var(--green); background: var(--green); color: #fff; }
+  .import-step { display: none; }
+  .import-step.active { display: block; animation: demoIn .2s ease; }
+
+  .file-card { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fbfcfd; }
+  .file-icon { width: 38px; height: 42px; flex: 0 0 38px; display: grid; place-items: center; border-radius: 6px; background: var(--green-soft); color: var(--green); font-size: 9px; font-weight: 800; letter-spacing: .04em; }
+  .file-info { flex: 1; min-width: 0; }
+  .file-info strong { display: block; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-info span { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .sheet-list { display: flex; flex-direction: column; gap: 7px; }
+  .sheet-item { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; background: #fff; }
+  .sheet-item:hover { border-color: #bfd1df; }
+  .sheet-item input { accent-color: var(--brand); }
+  .sheet-item > span:nth-of-type(1) { flex: 1; min-width: 0; }
+  .sheet-item strong { display: block; font-size: 12px; }
+  .sheet-item em { display: block; font-style: normal; font-size: 10.5px; color: var(--muted); }
+  .sheet-switcher { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .sheet-pill { appearance: none; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 10px; font-family: inherit; font-size: 10.5px; color: var(--muted); cursor: pointer; }
+  .sheet-pill.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+  .mapping-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px 10px; }
+  .mapping-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 10.5px; color: var(--muted); }
+  .mapping-grid select, .mapping-grid input, .filter-grid select, .filter-grid input, .exam-form input, .exam-form select, .search-bar input, .share-form input, .share-form select {
+    width: 100%; padding: 7px 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: #fff; color: var(--ink); font-family: inherit; font-size: 11.5px; outline: none;
+  }
+  .mapping-grid select:focus, .mapping-grid input:focus, .filter-grid select:focus, .exam-form input:focus, .search-bar input:focus, .share-form input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(30, 93, 135, .08); }
+  .req { color: var(--accent); font-size: 9.5px; }
+  .preview-table { border: 1px solid var(--line); border-radius: 8px; overflow: auto; }
+  .preview-table table { min-width: 600px; font-size: 10.5px; }
+  .preview-table th { padding: 7px 9px; font-size: 10px; }
+  .preview-table td { padding: 7px 9px; }
+  .result-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .result-stat { padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px; background: #fbfcfd; }
+  .result-stat b { display: block; font-size: 22px; line-height: 1.1; font-family: Georgia, serif; }
+  .result-stat span { font-size: 10.5px; color: var(--muted); }
+  .result-stat.good b { color: var(--green); }
+  .result-stat.bad b { color: var(--red); }
+  .result-stat.warn b { color: var(--amber); }
+  .error-box { margin-top: 10px; padding: 11px 12px; border: 1px solid #f0c9c9; background: #fffafa; border-radius: 8px; font-size: 11px; }
+  .error-box > strong { display: block; color: var(--red); margin-bottom: 5px; font-size: 11.5px; }
+  .error-line { color: var(--ink-soft); line-height: 1.55; margin: 3px 0; }
+  .error-line span { display: inline-block; color: var(--red); font-weight: 600; margin-right: 5px; }
+  .radio-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .radio-card { display: flex; gap: 8px; align-items: flex-start; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; font-size: 11px; cursor: pointer; background: #fff; }
+  .radio-card.checked { border-color: var(--brand); background: var(--brand-soft); }
+  .radio-card input { margin-top: 2px; accent-color: var(--brand); }
+  .radio-card span { display: block; }
+  .radio-card strong { display: block; font-size: 11.5px; }
+  .radio-card em { display: block; font-style: normal; color: var(--muted); font-size: 10.5px; margin-top: 2px; line-height: 1.45; }
+  .success-state { text-align: center; padding: 18px 10px 6px; }
+  .success-mark { width: 46px; height: 46px; display: grid; place-items: center; margin: 0 auto 10px; border-radius: 50%; background: var(--green-soft); color: var(--green); font-size: 22px; font-weight: 700; }
+  .success-state h4 { margin: 0 0 4px; font-size: 17px; }
+  .success-state p { margin: 0 auto 12px; max-width: 520px; color: var(--muted); font-size: 11.5px; }
+  .success-tags { display: flex; justify-content: center; flex-wrap: wrap; gap: 5px; }
+
+  /* Practice demo */
+  .filter-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+  .filter-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 10px; color: var(--muted); }
+  .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0 14px; padding: 9px 11px; background: #f7f9fb; border: 1px solid var(--line); border-radius: 8px; font-size: 11px; }
+  .filter-bar strong { color: var(--brand); font-size: 15px; font-family: Georgia, serif; }
+  .question-card { border: 1px solid var(--line); border-radius: 10px; padding: 15px 16px; background: #fff; }
+  .q-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .q-index { margin-left: auto; font-size: 10.5px; color: var(--muted); }
+  .q-stem { font-size: 13px; font-weight: 600; line-height: 1.6; margin: 0 0 12px; }
+  .option-list { display: flex; flex-direction: column; gap: 6px; }
+  .option-btn { display: flex; gap: 9px; align-items: flex-start; text-align: left; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: #fff; font-family: inherit; font-size: 11.5px; color: var(--ink-soft); cursor: pointer; line-height: 1.5; }
+  .option-btn:hover { border-color: #bfd1df; background: #fbfcfd; }
+  .option-btn.selected { border-color: var(--brand); background: var(--brand-soft); }
+  .option-btn.correct { border-color: var(--green); background: var(--green-soft); color: #235f47; }
+  .option-btn.wrong { border-color: var(--red); background: var(--red-soft); color: #8e3636; }
+  .option-key { flex: 0 0 18px; width: 18px; height: 18px; display: inline-grid; place-items: center; border-radius: 50%; border: 1px solid var(--line-strong); background: #fff; font-size: 9.5px; font-weight: 700; color: var(--muted); margin-top: 1px; }
+  .option-btn.selected .option-key { border-color: var(--brand); color: var(--brand); }
+  .option-btn.correct .option-key { border-color: var(--green); color: var(--green); }
+  .option-btn.wrong .option-key { border-color: var(--red); color: var(--red); }
+  .practice-input { width: 100%; padding: 9px 10px; border: 1px solid var(--line-strong); border-radius: 7px; font-family: inherit; font-size: 12px; outline: none; }
+  .practice-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(30, 93, 135, .08); }
+  .feedback { margin-top: 11px; padding: 10px 12px; border-radius: 7px; font-size: 11px; line-height: 1.55; }
+  .feedback.good { background: var(--green-soft); border: 1px solid #cbe5d7; color: #235f47; }
+  .feedback.bad { background: var(--red-soft); border: 1px solid #efcaca; color: #8e3636; }
+  .feedback.neutral { background: var(--amber-soft); border: 1px solid #efdbb3; color: #7b561a; }
+  .feedback strong { display: block; margin-bottom: 2px; }
+  .answer-line { margin-top: 5px; color: var(--ink-soft); }
+  .analysis-box { margin-top: 5px; padding-top: 5px; border-top: 1px dashed rgba(0,0,0,.12); color: var(--ink-soft); }
+  .practice-empty { text-align: center; padding: 24px 12px; border: 1px dashed var(--line-strong); border-radius: 9px; background: #fbfcfd; color: var(--muted); font-size: 11.5px; }
+  .practice-empty strong { display: block; color: var(--ink); margin-bottom: 3px; font-size: 13px; }
+
+  /* Exam demo */
+  .exam-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+  .exam-form label { display: flex; flex-direction: column; gap: 3px; font-size: 10.5px; color: var(--muted); }
+  .exam-form .span-2 { grid-column: span 2; }
+  .exam-available { display: flex; gap: 5px; flex-wrap: wrap; margin: 10px 0 2px; }
+  .avail-pill { font-size: 10px; color: var(--muted); background: #f7f9fb; border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; }
+  .exam-warning { margin-top: 10px; padding: 10px 12px; border: 1px solid #efd6b8; background: #fffaf2; color: #7b561a; border-radius: 7px; font-size: 11px; display: none; }
+  .exam-warning.show { display: block; }
+  .exam-summary { display: none; margin-top: 13px; border: 1px solid var(--line); border-radius: 9px; background: #fbfcfd; padding: 13px 14px; }
+  .exam-summary.show { display: block; animation: demoIn .2s ease; }
+  .exam-summary-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .exam-summary-head strong { font-size: 13px; }
+  .exam-stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .exam-stat { background: #fff; border: 1px solid var(--line); border-radius: 7px; padding: 8px 9px; }
+  .exam-stat b { display: block; font-family: Georgia, serif; font-size: 18px; color: var(--brand); line-height: 1.1; }
+  .exam-stat span { font-size: 9.5px; color: var(--muted); }
+  .exam-result { display: none; margin-top: 12px; border: 1px solid #cbe5d7; background: #f6fcf8; border-radius: 9px; padding: 14px; }
+  .exam-result.show { display: block; animation: demoIn .2s ease; }
+  .score-line { display: flex; align-items: baseline; gap: 8px; }
+  .score-line b { font-family: Georgia, serif; font-size: 34px; color: var(--green); line-height: 1; }
+  .score-line span { font-size: 11px; color: var(--muted); }
+  .score-line em { margin-left: auto; font-style: normal; color: var(--green); font-weight: 700; font-size: 11px; }
+  .report-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 9px; }
+  .report-item { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; font-size: 10px; color: var(--muted); }
+  .report-item strong { display: block; color: var(--ink); font-size: 12px; margin-bottom: 1px; }
+
+  /* Search demo */
+  .search-bar { display: flex; gap: 7px; }
+  .search-bar input { flex: 1; padding: 9px 11px; font-size: 12px; }
+  .search-filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 12px; }
+  .search-filter { appearance: none; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 3px 9px; font-family: inherit; font-size: 10px; color: var(--muted); cursor: pointer; }
+  .search-filter.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+  .search-results { display: flex; flex-direction: column; gap: 7px; }
+  .search-result { border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; background: #fff; }
+  .search-result:hover { border-color: #bfd1df; }
+  .search-result h5 { margin: 0 0 5px; font-size: 12px; line-height: 1.55; font-weight: 600; color: var(--ink); }
+  .search-result p { margin: 0; font-size: 10.5px; color: var(--muted); line-height: 1.5; }
+  .search-result mark { background: #fdecc8; color: #76520f; padding: 0 2px; border-radius: 2px; }
+  .search-result-meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+  .search-result-answer { display: none; margin-top: 7px; padding: 7px 8px; border-radius: 6px; background: #f7f9fb; font-size: 10.5px; color: var(--ink-soft); line-height: 1.55; }
+  .search-result-answer.show { display: block; }
+  .search-empty { display: none; text-align: center; padding: 20px; border: 1px dashed var(--line-strong); border-radius: 8px; color: var(--muted); font-size: 11px; }
+  .search-empty.show { display: block; }
+
+  /* Share demo */
+  .segmented { display: inline-flex; padding: 3px; background: #f1f4f8; border-radius: 8px; gap: 2px; }
+  .segmented button { appearance: none; border: 0; background: transparent; padding: 5px 10px; border-radius: 6px; font-family: inherit; font-size: 10.5px; color: var(--muted); cursor: pointer; }
+  .segmented button.active { background: #fff; color: var(--brand); box-shadow: 0 1px 4px rgba(0,0,0,.08); font-weight: 600; }
+  .share-form { display: flex; gap: 7px; margin-top: 10px; }
+  .share-form input { flex: 1; }
+  .share-card { display: none; margin-top: 12px; border: 1px solid var(--line); border-radius: 9px; padding: 12px 13px; background: #fbfcfd; }
+  .share-card.show { display: block; animation: demoIn .2s ease; }
+  .share-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 7px; }
+  .share-card-head strong { font-size: 12.5px; }
+  .perm-list { display: flex; gap: 4px; flex-wrap: wrap; margin: 7px 0; }
+  .perm { font-size: 9.5px; padding: 2px 6px; border-radius: 4px; background: var(--green-soft); color: var(--green); }
+  .perm.no { background: #f1f3f6; color: var(--muted); }
+  .link-box { display: flex; gap: 5px; align-items: center; padding: 7px 8px; background: #fff; border: 1px solid var(--line); border-radius: 6px; font-family: Consolas, monospace; font-size: 10.5px; color: var(--brand); }
+  .link-box span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .share-status { font-size: 10px; color: var(--green); margin-top: 6px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 14px);
+    background: #17212f; color: #fff; padding: 9px 15px; border-radius: 8px;
+    font-size: 12px; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease;
+    z-index: 99; box-shadow: 0 10px 30px rgba(0,0,0,.2);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 1180px) {
+    .sidebar { width: 250px; padding: 24px 16px; }
+    .main { margin-left: 250px; padding: 34px 32px 80px; }
+    .hero, .section { padding-left: 32px; padding-right: 32px; }
+    .facts { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 900px) {
+    .sidebar {
+      position: sticky; inset: 0 0 auto 0; width: 100%;
+      height: auto; padding: 12px 18px;
+      flex-direction: row; align-items: center; gap: 14px;
+      border-right: 0; border-bottom: 1px solid var(--line);
+      overflow-x: auto; overflow-y: hidden;
+      background: rgba(255, 255, 255, .94);
+    }
+    .brand { flex: 0 0 auto; }
+    .brand-mark { width: 34px; height: 34px; flex-basis: 34px; font-size: 16px; border-radius: 10px; }
+    .brand strong { font-size: 14px; }
+    .brand span { display: none; }
+    .nav-label, .side-footer { display: none; }
+    .nav { flex-direction: row; gap: 4px; flex: 0 0 auto; }
+    .nav a { white-space: nowrap; padding: 7px 9px; font-size: 11.5px; }
+    .nav a:hover { transform: none; }
+    .nav a .n { display: none; }
+    .main { margin-left: 0; padding: 24px 18px 70px; }
+    .hero { padding: 34px 28px 28px; border-radius: 18px; }
+    .hero-meta { grid-template-columns: repeat(2, 1fr); }
+    .facts { grid-template-columns: repeat(2, 1fr); }
+    .section { padding: 28px 24px; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .flow-step:not(:last-child)::after { display: none; }
+  }
+  @media (max-width: 560px) {
+    .main { padding: 16px 12px 60px; }
+    .hero { padding: 28px 20px 24px; }
+    .hero h1 { font-size: 34px; }
+    .lede { font-size: 14px; }
+    .facts { grid-template-columns: 1fr 1fr; }
+    .fact { padding: 11px 12px; }
+    .fact b { font-size: 18px; }
+    .section { padding: 24px 18px; }
+    .section-head h2 { font-size: 22px; }
+    .hero-meta { gap: 10px; }
+  }
+  @media print {
+    .sidebar, .demo, .no-print { display: none !important; }
+    body { background: #fff; font-size: 11pt; }
+    .main { margin: 0; padding: 0; }
+    .hero, .section { box-shadow: none; border-color: #ddd; break-inside: avoid; }
+    .section { page-break-inside: auto; }
+  }
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-mark">题</div>
+    <div>
+      <strong>刷题系统</strong>
+      <span>PRODUCT REQUIREMENTS</span>
+    </div>
+  </div>
+  <div>
+    <p class="nav-label">文档目录</p>
+    <nav class="nav" id="nav">
+      <a href="#overview" class="active"><span class="n">01</span>产品定义</a>
+      <a href="#roles"><span class="n">02</span>角色与权限</a>
+      <a href="#objects"><span class="n">03</span>对象与状态</a>
+      <a href="#scope"><span class="n">04</span>范围与优先级</a>
+      <a href="#flows"><span class="n">05</span>核心流程</a>
+      <a href="#features"><span class="n">06</span>功能需求</a>
+      <a href="#rules"><span class="n">07</span>共享规则</a>
+      <a href="#exceptions"><span class="n">08</span>异常与边界</a>
+      <a href="#nfr"><span class="n">09</span>运行约束</a>
+      <a href="#open"><span class="n">10</span>待确认问题</a>
+    </nav>
+  </div>
+  <div class="side-footer">
+    <strong><span class="stage-dot"></span>待评审 · v1.0</strong>
+    适用于自托管 MVP。文中标注 <span class="assumption">[假设, TBD]</span> 的内容需在评审时确认。
+  </div>
+</aside>
+
+<main class="main">
+<div class="wrap">
+
+  <header class="hero" id="top">
+    <div class="eyebrow"><span class="dot"></span>PRD · 自托管刷题平台</div>
+    <h1>刷题系统<em>产品需求文档</em></h1>
+    <p class="lede">把 Excel 题库变成可练、可考、可分享的结构化题库。一次导入多个子表，逐列确认标题行与字段映射；按题型、答题结果、判断题答案、章节和难度刷题，并用错题本与模拟考试完成学习闭环。</p>
+    <div class="hero-meta">
+      <div><span>文档版本</span><strong>v1.0</strong></div>
+      <div><span>文档状态</span><strong>待评审</strong></div>
+      <div><span>产品形态</span><strong> Web / H5 / PWA</strong></div>
+      <div><span>更新日期</span><strong>2026-10-24</strong></div>
+    </div>
+    <div class="facts">
+      <div class="fact"><b>2</b><span>类账号角色</span></div>
+      <div class="fact"><b>8</b><span>个 P0 功能模块</span></div>
+      <div class="fact"><b>5</b><span>种题目类型</span></div>
+      <div class="fact"><b>5</b><span>维刷题筛选</span></div>
+      <div class="fact"><b>1</b><span>套多子表导入向导</span></div>
+    </div>
+  </header>
+
+  <section class="section" id="overview">
+    <div class="section-head">
+      <h2><span class="sec-no">01</span>产品定义</h2>
+      <p class="section-lead">先明确这个产品为谁解决什么问题，以及什么结果算“完成了一次刷题闭环”。</p>
+    </div>
+
+    <h3>1.1 背景与问题</h3>
+    <p>备考用户和题库整理者通常已经拥有 Excel、CSV 形式的题库，但通用刷题工具对表格结构要求固定：标题行不能选、列不能映射、多个子表要拆成多个文件反复上传，导入失败时也看不到具体原因。结果是“有题库但用不起来”，或者需要手工整理成平台指定格式。</p>
+    <p>本产品以自托管、数据可控为前提，把“表格导入”做成可预览、可纠正的向导，并围绕导入后的题库提供练习、错题、考试、搜索和分享能力。产品参照考试宝的核心使用路径，但不复制其社区、课程或付费体系。</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <span class="card-label">核心问题</span>
+        <ul class="clean-list">
+          <li>表格结构不统一，导入门槛高、失败成本高。</li>
+          <li>题库散落在个人文件里，无法按章节、难度、错题等条件复用。</li>
+          <li>题库分享依赖发文件，接收方无法直接练习，也无法撤回。</li>
+          <li>自托管场景需要清晰的管理员与普通用户边界。</li>
+        </ul>
+      </div>
+      <div class="card tint">
+        <span class="card-label">产品回应</span>
+        <ul class="clean-list">
+          <li>多子表导入 + 标题行选择 + 逐列映射 + 行级校验。</li>
+          <li>一个题库内按五个维度组合筛选，错题自动沉淀。</li>
+          <li>题库只读分享、链接可撤销；内置题库一键复制。</li>
+          <li>管理员维护账号、内置题库与系统边界，不越权查看私有内容。</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>1.2 产品契约</h3>
+    <div class="callout blue">
+      <strong>一句话定义：</strong>用户把 Excel 子表导入为结构化题库，按条件刷题并形成错题复习闭环；题库可只读分享给其他用户，管理员维护账号与内置题库。
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:110px">契约项</th><th>定义</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>主要用户</strong></td><td>有备考需求的个人用户；其次是整理题库并分享给学生的培训老师，以及维护站点的管理员。</td></tr>
+          <tr><td><strong>触发场景</strong></td><td>用户拿到一份或多份 Excel 题库，希望快速变成可在电脑和手机上刷的题，而不是逐题录入。</td></tr>
+          <tr><td><strong>核心任务</strong></td><td>登录 → 上传表格 → 选择子表与标题行 → 映射字段 → 校验并生成题库 → 选择练习方式 → 查看错题与成绩。</td></tr>
+          <tr><td><strong>完成条件</strong></td><td>题库成功保存且题量与导入结果一致；用户能按至少一个筛选条件开始练习；答题结果、错题和练习记录被正确保存。</td></tr>
+          <tr><td><strong>信任基础</strong></td><td>导入前可预览、可纠错；答题过程不丢答案；题库分享可撤回；用户私有题库不被其他普通用户访问。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>1.3 产品目标</h3>
+    <p>目标用“用户能观察到什么”来描述，不设无法验证的量化指标。</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:34%">目标</th><th>可观察的完成结果</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>降低导入门槛</strong></td><td>一份含多个子表的文件可以在一个向导中处理；每个子表可独立选择标题行和映射列；无效行在写入前被列出，并说明行号与原因。</td></tr>
+          <tr><td><strong>让练习可控</strong></td><td>用户能按题型、答题结果、判断题答案、章节、难度组合筛选，看到匹配题量；无匹配题时有明确空状态。</td></tr>
+          <tr><td><strong>形成错题闭环</strong></td><td>答错自动进入错题本；错题练习中连续答对两次可标记“已掌握”；用户也可手动恢复或移出错题本。</td></tr>
+          <tr><td><strong>让题库复用</strong></td><td>用户能基于选定题库与筛选条件生成模拟试卷；题量不足时得到具体缺口提示；题库可以只读分享并随时撤销。</td></tr>
+          <tr><td><strong>边界清晰</strong></td><td>普通用户只能访问自有、共享和内置题库；管理员能管理账号与内置题库，但默认不读取用户私有题目内容。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>1.4 目标用户与典型场景</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:18%">用户</th><th style="width:30%">典型场景</th><th>关键诉求</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>个人考生</strong></td><td>拿到培训机构的 Excel 题库，想按章节和错题反复练，考前做模拟卷。</td><td>导入快、手机上能刷、错题不丢、能看到成绩和解析。</td></tr>
+          <tr><td><strong>题库整理者 / 老师</strong></td><td>整理多门课的题库，按子表组织，希望分享给同事或学生。</td><td>多子表一次导入、字段可映射、分享可撤回、接收方不用再拿文件。</td></tr>
+          <tr><td><strong>站点管理员</strong></td><td>在宝塔或群晖 Web Station 上部署，维护账号、内置题库和系统设置。</td><td>账号可控、内置题库可更新、分享可治理、用户数据边界清楚。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <section class="section" id="roles">
+    <div class="section-head">
+      <h2><span class="sec-no">02</span>角色与权限</h2>
+      <p class="section-lead">系统只有管理员和普通用户两类账号。权限按“自有、共享、内置、他人私有”四条数据边界划分。</p>
+    </div>
+
+    <h3>2.1 角色定义</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:18%">角色</th><th>定义</th><th style="width:32%">核心能力</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>普通用户</strong></td>
+            <td>通过开放注册或管理员创建获得账号的个人用户。管理员也可以拥有自己的题库并参与刷题。</td>
+            <td>管理自有题库；导入、练习、模考、搜题；只读分享自有题库；查看共享与内置题库。</td>
+          </tr>
+          <tr>
+            <td><strong>管理员</strong></td>
+            <td>拥有站点管理权限的账号。安装时创建首个管理员；管理员可创建其他管理员，但至少保留一个可用管理员。</td>
+            <td>普通用户全部能力；用户管理、角色调整、密码重置、内置题库管理、系统设置、分享治理、审计日志。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <strong>账号状态：</strong>账号只有“正常”和“已禁用”两种状态。禁用后立即无法登录，现有登录会话失效，该用户发起的分享链接失效；题库、答题记录和错题数据保留。重新启用后，原分享链接不会自动恢复，需要重新生成。
+    </div>
+
+    <h3>2.2 权限矩阵</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:43%">能力</th><th style="width:24%">普通用户</th><th>管理员</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>注册、登录、修改自己的密码</td><td class="center">允许</td><td class="center">允许</td></tr>
+          <tr><td>创建、导入、编辑、删除自有题库</td><td class="center">允许</td><td class="center">允许，仅限自有题库</td></tr>
+          <tr><td>练习、模考、搜题、查看错题</td><td class="center">自有 + 共享 + 内置副本</td><td class="center">同普通用户</td></tr>
+          <tr><td>只读分享自有题库</td><td class="center">允许</td><td class="center">允许</td></tr>
+          <tr><td>访问他人私有题库</td><td class="center">禁止</td><td class="center">默认禁止；仅排障模式可只读访问并留痕</td></tr>
+          <tr><td>编辑共享题库或内置题库原件</td><td class="center">禁止</td><td class="center">内置题库允许；共享题库仍只读</td></tr>
+          <tr><td>管理用户、调整角色、重置密码</td><td class="center">禁止</td><td class="center">允许</td></tr>
+          <tr><td>管理内置题库与分类</td><td class="center">禁止</td><td class="center">允许</td></tr>
+          <tr><td>强制撤销全站分享</td><td class="center">禁止</td><td class="center">允许</td></tr>
+          <tr><td>修改系统设置</td><td class="center">禁止</td><td class="center">允许</td></tr>
+          <tr><td>查看审计日志</td><td class="center">禁止</td><td class="center">允许</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>2.3 数据可见性</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:22%">数据范围</th><th>普通用户可见内容</th><th style="width:30%">管理员可见内容</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>自有题库</strong></td><td>完整内容；可编辑、删除、分享、练习。</td><td>完整内容，但只可管理自己的题库；不修改他人题库。</td></tr>
+          <tr><td><strong>共享给我的题库</strong></td><td>完整题目内容；只读；可练习、模考、搜题；不可编辑、转分享、下载。</td><td>同普通用户，除非管理员本人是分享接收方。</td></tr>
+          <tr><td><strong>内置题库目录</strong></td><td>题库名称、分类、题量、简介、示例题；可复制到自己的题库。</td><td>完整内容；可编辑、上下架、删除。</td></tr>
+          <tr><td><strong>内置题库副本</strong></td><td>导入后视为自有题库，可编辑、分享、删除。</td><td>仅能管理管理员自己导入的副本。</td></tr>
+          <tr><td><strong>他人私有题库</strong></td><td>不可见，不出现在列表、搜索或分享选择器中。</td><td>默认仅可见元数据（名称、题量、占用空间、分享状态），不可进入题目内容。</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="footnote">管理员排障模式：仅在处理用户报障、侵权投诉或数据异常时启用；需填写原因，系统记录操作人、目标题库、时间与原因。排障模式只读，不提供编辑和下载入口。<span class="assumption">[假设, TBD]</span></p>
+
+    <h3>2.4 管理员保护规则</h3>
+    <ul class="check-list">
+      <li>系统至少保留一个状态正常的管理员；最后一个管理员不能被禁用、降级或删除。</li>
+      <li>管理员不能禁用自己；如需停用，必须先由另一名管理员接手。</li>
+      <li>普通用户不能通过注册获得管理员角色；角色调整只能由管理员执行。</li>
+      <li>管理员重置密码后生成一次性临时密码，用户下次登录必须修改密码。</li>
+    </ul>
+  </section>
+
+  <section class="section" id="objects">
+    <div class="section-head">
+      <h2><span class="sec-no">03</span>核心对象与状态</h2>
+      <p class="section-lead">统一对象名称和状态，避免后续功能各自定义“题库”“错题”“试卷”的含义。</p>
+    </div>
+
+    <h3>3.1 核心对象</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:16%">对象</th><th>定义</th><th style="width:35%">关键属性</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>账号</strong></td><td>登录系统的主体，拥有角色、状态和存储配额。</td><td>用户名、昵称、密码、角色、状态、存储用量、创建时间。</td></tr>
+          <tr><td><strong>题库</strong></td><td>一组题目的集合。一个导入子表生成一个题库；手动创建的题库也属于同一对象。</td><td>名称、简介、所有者、来源（手动/表格导入/内置副本）、题目数、更新时间。</td></tr>
+          <tr><td><strong>题目</strong></td><td>题库中的最小练习单位，包含题干、题型、选项、答案、解析、章节和难度。</td><td>题型、题干、选项、正确答案、解析、章节路径、难度、排序号。</td></tr>
+          <tr><td><strong>导入任务</strong></td><td>一次表格上传到生成题库的完整过程，包含所选子表、标题行、列映射和校验结果。</td><td>文件信息、子表列表、标题行、映射方案、有效行数、错误行数、状态。</td></tr>
+          <tr><td><strong>答题记录</strong></td><td>用户对某道题的一次作答结果，是练习报告和筛选“答对/答错/未做”的依据。</td><td>用户、题目、作答内容、是否正确、作答时间、来源（练习/考试）。</td></tr>
+          <tr><td><strong>错题项</strong></td><td>用户错题本中的一条记录，跟踪答错次数、连续答对次数和掌握状态。</td><td>用户、题目、答错次数、连续答对次数、状态、最近答错时间。</td></tr>
+          <tr><td><strong>模拟试卷</strong></td><td>按用户配置抽题并冻结题目内容的试卷快照。</td><td>组卷配置、题目快照、总分、时长、及格线、生成时间。</td></tr>
+          <tr><td><strong>考试记录</strong></td><td>用户对某份模拟试卷的一次作答，包含答案、得分和状态。</td><td>试卷、用户、作答、得分、开始/交卷时间、状态。</td></tr>
+          <tr><td><strong>分享</strong></td><td>题库所有者向其他账号或链接授予只读访问权的关系。</td><td>题库、发起人、接收人/链接、权限、状态、创建时间。</td></tr>
+          <tr><td><strong>内置题库</strong></td><td>管理员维护的官方题库模板，普通用户可复制到自己的题库。</td><td>名称、分类、题量、简介、示例题、上架状态、更新时间。</td></tr>
+          <tr><td><strong>审计日志</strong></td><td>记录管理员和系统关键操作的只读日志。</td><td>操作人、动作、目标对象、结果、时间、原因（排障模式必填）。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>3.2 状态与允许操作</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:15%">对象</th><th style="width:23%">状态</th><th>含义与允许操作</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td rowspan="5"><strong>导入任务</strong></td>
+            <td>解析中</td><td>系统正在读取文件与子表。用户可离开页面，任务在后台继续。</td>
+          </tr>
+          <tr><td>待映射</td><td>文件解析完成，等待用户选择子表、标题行和列映射。可取消。</td></tr>
+          <tr><td>校验中</td><td>系统逐行检查数据。不可编辑映射；可取消。</td></tr>
+          <tr><td>待确认 / 部分可导入</td><td>校验完成。用户可查看有效与错误行，决定导入有效行或返回修改；零有效行时不可导入。</td></tr>
+          <tr><td>成功 / 部分成功 / 失败</td><td>成功表示全部有效行已写入；部分成功表示有效行写入、错误行被跳过；失败表示未生成任何题库。均保留结果摘要与错误报告。</td></tr>
+          <tr>
+            <td rowspan="2"><strong>账号</strong></td>
+            <td>正常</td><td>可登录并使用全部角色权限。</td>
+          </tr>
+          <tr><td>已禁用</td><td>不可登录；现有会话失效；分享链接失效；数据保留。管理员可重新启用。</td></tr>
+          <tr>
+            <td rowspan="3"><strong>分享</strong></td>
+            <td>生效</td><td>接收方可只读访问题库，进行练习、模考和搜题。</td>
+          </tr>
+          <tr><td>已撤销</td><td>发起人或管理员主动撤销。接收方立即失去访问权。</td></tr>
+          <tr><td>已失效</td><td>题库删除或所有者账号禁用后自动失效，不可恢复；仅重置链接时，旧链接失效，但已接受分享的用户不受影响。</td></tr>
+          <tr>
+            <td rowspan="3"><strong>错题项</strong></td>
+            <td>未掌握</td><td>默认错题列表可见；可进入错题练习。</td>
+          </tr>
+          <tr><td>已掌握</td><td>错题练习中连续答对 2 次后自动进入；默认列表隐藏，可在“已掌握”筛选中查看与恢复。</td></tr>
+          <tr><td>已失效</td><td>原题被删除或共享被撤销后，题目不可打开；用户仅可移除该记录。</td></tr>
+          <tr>
+            <td rowspan="3"><strong>考试记录</strong></td>
+            <td>进行中</td><td>计时中，答案逐题保存；可刷新恢复；交卷前可修改答案。</td></tr>
+          <tr><td>已交卷</td><td>用户主动交卷；显示成绩与解析；不可再修改答案。</td></tr>
+          <tr><td>已超时交卷</td><td>倒计时结束系统自动交卷；未作答题目按错误计分。</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <strong>删除语义：</strong>题库删除是不可恢复操作（P1 再考虑回收站）。删除前必须二次确认并输入题库名称；删除后该题库的全部分享立即失效，错题和考试记录保留摘要但题目入口显示“原题已删除”。
+    </div>
+  </section>
+
+  <section class="section" id="scope">
+    <div class="section-head">
+      <h2><span class="sec-no">04</span>范围与优先级</h2>
+      <p class="section-lead">P0 是最小可用闭环：能导入、能刷、能考、能搜、能分享、能管理。P1 只列会改变当前架构或数据模型的能力。</p>
+    </div>
+
+    <h3>4.1 P0 范围</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:18%">模块</th><th>P0 交付内容</th><th style="width:26%">完成标志</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>账号与权限</strong></td><td>注册、登录、退出、修改密码；管理员创建账号、禁用/启用、重置密码、调整角色。</td><td>普通用户与管理员看到不同入口；禁用账号无法登录。</td></tr>
+          <tr><td><strong>题库管理</strong></td><td>题库列表、详情、题目列表、手动新增/编辑/删除题目、题库重命名与删除。</td><td>导入或手动创建的题库可打开并准确显示题量。</td></tr>
+          <tr><td><strong>表格导入</strong></td><td>xlsx/xls/csv；多子表；标题行选择；列映射；类型推断；行级校验；部分导入；错误报告。</td><td>一个文件中的多个子表可分别生成题库，错误行有明确原因。</td></tr>
+          <tr><td><strong>练习与错题</strong></td><td>顺序、随机、章节、专项、错题练习；五维筛选；即时判分与解析；练习报告；错题自动记录与掌握状态。</td><td>用户可选条件开始练习，答错自动进入错题本。</td></tr>
+          <tr><td><strong>模拟考试</strong></td><td>按题库、题型、章节、难度组卷；题量校验；试卷快照；倒计时；自动判分；成绩与解析。</td><td>可生成试卷并完成一次考试，交卷后得到分数与错题。</td></tr>
+          <tr><td><strong>搜题</strong></td><td>在自有与共享题库中搜索题干、选项、解析；按题库、题型、章节、难度筛选；查看答案与解析。</td><td>搜索命中且有权限的题目可查看并进入单题练习。</td></tr>
+          <tr><td><strong>分享与内置题库</strong></td><td>指定用户分享、链接分享、只读权限、撤销；内置题库分类浏览、示例预览、复制到我的题库。</td><td>接收方可只读练习；发起人撤销后立即失效。</td></tr>
+          <tr><td><strong>管理后台</strong></td><td>概览、用户管理、内置题库管理、分享治理、系统设置、审计日志。</td><td>管理员可完成账号与内置题库维护，关键操作有记录。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>4.2 P1 候选</h3>
+    <ul class="pill-row">
+      <li class="pill">题目批量编辑与追加导入</li>
+      <li class="pill">题库版本合并与去重报告</li>
+      <li class="pill">收藏、笔记、学习统计</li>
+      <li class="pill">简答题自评计入模考</li>
+      <li class="pill">分享有效期、访问密码、公开题库广场</li>
+      <li class="pill">题库另存副本（共享题库）</li>
+      <li class="pill">原生 APP 壳与离线题库</li>
+      <li class="pill">邮件找回密码、第三方登录</li>
+      <li class="pill">题目纠错与反馈</li>
+      <li class="pill">回收站与恢复</li>
+    </ul>
+
+    <h3>4.3 明确不纳入本期</h3>
+    <div class="grid-3">
+      <div class="card plain"><strong>交易与会员</strong><p class="small muted">付费题库、订单、分佣、会员权益。</p></div>
+      <div class="card plain"><strong>内容社区</strong><p class="small muted">发帖、评论、排行榜、直播课与问答。</p></div>
+      <div class="card plain"><strong>AI 与监考</strong><p class="small muted">AI 出题/解析、人脸识别、防作弊监考。</p></div>
+    </div>
+    <p class="footnote">不纳入不等于永远不做，而是当前 P0 不为其预留专门的数据结构或页面入口。</p>
+  </section>
+  <section class="section" id="flows">
+    <div class="section-head">
+      <h2><span class="sec-no">05</span>核心流程</h2>
+      <p class="section-lead">先看四条主流程和页面结构，再看可点击的关键交互演示。演示只表达交互与状态，不代表最终视觉稿。</p>
+    </div>
+
+    <h3>5.1 信息架构</h3>
+    <div class="grid-2">
+      <div class="card">
+        <span class="card-label">用户端</span>
+        <ul class="clean-list">
+          <li><strong>登录 / 注册</strong>：账号入口；注册可由管理员关闭。</li>
+          <li><strong>首页</strong>：继续上次练习、我的题库、错题数量、最近考试。</li>
+          <li><strong>题库</strong>：我的题库 / 共享给我 / 内置题库三个标签页。</li>
+          <li><strong>错题本</strong>：跨题库错题、已掌握筛选、错题练习。</li>
+          <li><strong>模拟考试</strong>：组卷、考试记录、成绩与解析。</li>
+          <li><strong>搜题</strong>：按关键词与筛选条件查找题目。</li>
+          <li><strong>我的</strong>：资料、存储用量、修改密码、退出登录。</li>
+        </ul>
+      </div>
+      <div class="card accent">
+        <span class="card-label">管理端</span>
+        <ul class="clean-list">
+          <li><strong>概览</strong>：用户、题库、题目、存储与近期导入概况。</li>
+          <li><strong>用户管理</strong>：搜索、创建、禁用/启用、重置密码、角色调整。</li>
+          <li><strong>内置题库</strong>：分类、上传、编辑信息、上下架、删除。</li>
+          <li><strong>分享治理</strong>：查看生效分享、强制撤销。</li>
+          <li><strong>系统设置</strong>：注册开关、存储配额、上传限制、分享开关。</li>
+          <li><strong>审计日志</strong>：管理动作与排障访问记录。</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>5.2 表格导入流程</h3>
+    <div class="flow">
+      <div class="flow-step"><b>1</b><strong>上传表格</strong><span>选择 xlsx / xls / csv，解析子表。</span></div>
+      <div class="flow-step"><b>2</b><strong>选子表与标题行</strong><span>每个子表可生成一个题库。</span></div>
+      <div class="flow-step"><b>3</b><strong>映射列</strong><span>题干、题型、选项、答案、解析、章节、难度。</span></div>
+      <div class="flow-step"><b>4</b><strong>校验预览</strong><span>有效行、错误行、重复题分别列出。</span></div>
+      <div class="flow-step"><b>5</b><strong>生成题库</strong><span>写入有效行，保留错误报告。</span></div>
+    </div>
+    <p class="small muted">关键约束：校验发生在写入之前；无效行不会被静默丢弃；用户可下载错误报告后修改原表再导入。</p>
+
+    <h3>5.3 刷题与错题闭环</h3>
+    <div class="flow">
+      <div class="flow-step"><b>1</b><strong>选题库</strong><span>自有、共享或内置副本。</span></div>
+      <div class="flow-step"><b>2</b><strong>设筛选</strong><span>题型、答题结果、判断题答案、章节、难度。</span></div>
+      <div class="flow-step"><b>3</b><strong>作答</strong><span>提交后立即显示对错与解析。</span></div>
+      <div class="flow-step"><b>4</b><strong>记录</strong><span>逐题保存答案；答错写入错题本。</span></div>
+      <div class="flow-step"><b>5</b><strong>复盘</strong><span>练习报告、错题练习、连续答对标记掌握。</span></div>
+    </div>
+
+    <h3>5.4 模拟考试流程</h3>
+    <div class="flow">
+      <div class="flow-step"><b>1</b><strong>配置试卷</strong><span>题库、题型题量、章节、难度、时长。</span></div>
+      <div class="flow-step"><b>2</b><strong>校验题量</strong><span>不足时显示缺口，阻止生成。</span></div>
+      <div class="flow-step"><b>3</b><strong>生成快照</strong><span>冻结题目内容与正确答案。</span></div>
+      <div class="flow-step"><b>4</b><strong>计时答题</strong><span>逐题保存，刷新可恢复。</span></div>
+      <div class="flow-step"><b>5</b><strong>交卷判分</strong><span>自动判分、成绩报告、错题入库。</span></div>
+    </div>
+
+    <h3>5.5 分享流程</h3>
+    <div class="flow compact">
+      <div class="flow-step"><b>1</b><strong>选择题库</strong><span>自有题库或内置副本。</span></div>
+      <div class="flow-step"><b>2</b><strong>选择方式</strong><span>指定用户或生成链接。</span></div>
+      <div class="flow-step"><b>3</b><strong>只读访问</strong><span>练习、模考、搜题，不可编辑。</span></div>
+      <div class="flow-step"><b>4</b><strong>随时撤销</strong><span>发起人或管理员可撤销。</span></div>
+    </div>
+
+    <h3>5.6 关键交互演示</h3>
+    <p class="small muted">下面的演示使用模拟数据，可点击切换标签并操作。它用于评审交互和信息反馈，不替代功能需求中的规则定义。</p>
+
+    <div class="demo" id="demo">
+      <div class="demo-topbar">
+        <div class="demo-dots"><span></span><span></span><span></span></div>
+        <div class="demo-title">刷题系统 · 关键流程预览</div>
+        <div class="demo-badge">演示数据</div>
+      </div>
+      <div class="demo-tabs" role="tablist" aria-label="关键流程演示">
+        <button class="demo-tab active" data-demo-tab="import" role="tab" aria-selected="true">题库导入</button>
+        <button class="demo-tab" data-demo-tab="practice" role="tab" aria-selected="false">刷题与错题</button>
+        <button class="demo-tab" data-demo-tab="exam" role="tab" aria-selected="false">模拟考试</button>
+        <button class="demo-tab" data-demo-tab="search" role="tab" aria-selected="false">搜题</button>
+        <button class="demo-tab" data-demo-tab="share" role="tab" aria-selected="false">分享</button>
+      </div>
+      <div class="demo-body">
+
+        <section class="demo-panel active" data-demo-panel="import">
+          <div class="demo-panel-head">
+            <div>
+              <h4>多子表导入向导</h4>
+              <p>一个文件生成多个题库，导入前看清每一列的映射与每一行的错误。</p>
+            </div>
+            <span class="tag blue">FR-03</span>
+          </div>
+
+          <div class="stepper" id="importStepper">
+            <div class="step active" data-step-dot="1"><b>1</b><span>上传与选表</span></div>
+            <div class="step" data-step-dot="2"><b>2</b><span>标题行与映射</span></div>
+            <div class="step" data-step-dot="3"><b>3</b><span>校验与导入</span></div>
+          </div>
+
+          <div class="import-step active" data-import-step="1">
+            <div class="file-card">
+              <div class="file-icon">XLSX</div>
+              <div class="file-info">
+                <strong>2026 事业单位题库.xlsx</strong>
+                <span>1.8 MB · 3 个非空子表 · 解析完成</span>
+              </div>
+              <span class="tag p0">已读取</span>
+            </div>
+            <p class="demo-label">选择要生成题库的子表</p>
+            <div class="sheet-list">
+              <label class="sheet-item checked">
+                <input type="checkbox" checked>
+                <span><strong>公共基础知识</strong><em>240 行 · 12 列</em></span>
+                <span class="tag gray">生成题库</span>
+              </label>
+              <label class="sheet-item checked">
+                <input type="checkbox" checked>
+                <span><strong>行政法</strong><em>86 行 · 10 列</em></span>
+                <span class="tag gray">生成题库</span>
+              </label>
+              <label class="sheet-item checked">
+                <input type="checkbox" checked>
+                <span><strong>申论素材</strong><em>32 行 · 8 列</em></span>
+                <span class="tag gray">生成题库</span>
+              </label>
+            </div>
+            <div class="demo-actions">
+              <span class="demo-hint">预计生成 3 个题库</span>
+              <button class="btn primary" data-import-next="1">解析并继续</button>
+            </div>
+          </div>
+
+          <div class="import-step" data-import-step="2">
+            <div class="sheet-switcher">
+              <button class="sheet-pill active">公共基础知识</button>
+              <button class="sheet-pill">行政法</button>
+              <button class="sheet-pill">申论素材</button>
+              <span class="small muted">映射将复用到结构相同的子表</span>
+            </div>
+            <div class="mapping-grid">
+              <label>标题行
+                <select>
+                  <option>第 1 行（推荐）</option>
+                  <option>第 2 行</option>
+                  <option>第 3 行</option>
+                </select>
+              </label>
+              <label>题库名称
+                <input type="text" value="公共基础知识">
+              </label>
+              <label>题干 <span class="req">必填</span>
+                <select><option>题目内容</option><option>题干</option><option>问题</option></select>
+              </label>
+              <label>题型 <span class="req">必填</span>
+                <select><option>题型</option><option>题目类型</option><option>不映射（自动推断）</option></select>
+              </label>
+              <label>选项模式
+                <select><option>分列选项 A–F</option><option>单列选项（换行或 | 分隔）</option></select>
+              </label>
+              <label>答案 <span class="req">必填</span>
+                <select><option>正确答案</option><option>答案</option></select>
+              </label>
+              <label>解析
+                <select><option>解析</option><option>题目解析</option><option>不映射</option></select>
+              </label>
+              <label>章节
+                <select><option>章节</option><option>知识点</option><option>不映射</option></select>
+              </label>
+              <label>难度
+                <select><option>难度</option><option>程度</option><option>不映射</option></select>
+              </label>
+            </div>
+            <p class="demo-label">数据预览</p>
+            <div class="preview-table">
+              <table>
+                <thead><tr><th>行</th><th>题干</th><th>题型</th><th>选项</th><th>答案</th></tr></thead>
+                <tbody>
+                  <tr><td>2</td><td>我国现行宪法公布施行于哪一年？</td><td>单选</td><td>A.1982 B.1988 C.1999 D.2004</td><td>A</td></tr>
+                  <tr><td>3</td><td>行政处罚的种类包括限制开展生产经营活动。</td><td>判断</td><td>正确 / 错误</td><td>正确</td></tr>
+                  <tr><td>4</td><td>行政复议机关应当自受理申请之日起几日内作出决定？</td><td>填空</td><td>—</td><td>60日</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="demo-actions">
+              <button class="btn ghost" data-import-back="1">上一步</button>
+              <span class="demo-hint">已映射 7 个字段</span>
+              <button class="btn primary" data-import-next="2">开始校验</button>
+            </div>
+          </div>
+
+          <div class="import-step" data-import-step="3">
+            <div class="result-summary">
+              <div class="result-stat good"><b>352</b><span>可导入题目</span></div>
+              <div class="result-stat bad"><b>2</b><span>错误行</span></div>
+              <div class="result-stat warn"><b>4</b><span>重复题（将跳过）</span></div>
+            </div>
+            <div class="error-box">
+              <strong>需要修改的 2 行</strong>
+              <div class="error-line"><span>行政法 · 第 28 行</span>判断题答案“是”无法识别，应为“正确/错误/对/错/√/×”。</div>
+              <div class="error-line"><span>行政法 · 第 77 行</span>多选题答案只有 1 个选项，至少需要 2 个。</div>
+            </div>
+            <p class="demo-label">处理方式</p>
+            <div class="radio-row">
+              <label class="radio-card checked"><input type="radio" name="import-mode" checked><span><strong>导入 352 道有效题</strong><em>跳过 2 行错误与 4 道重复题，错误报告可下载</em></span></label>
+              <label class="radio-card"><input type="radio" name="import-mode"><span><strong>返回修改映射</strong><em>不写入任何数据，回到上一步调整</em></span></label>
+            </div>
+            <div class="demo-actions">
+              <button class="btn ghost" data-import-back="2">上一步</button>
+              <button class="btn ghost" data-demo-action="download">下载错误报告</button>
+              <button class="btn primary" data-import-confirm>确认导入有效题目</button>
+            </div>
+          </div>
+
+          <div class="import-step" data-import-step="4">
+            <div class="success-state">
+              <div class="success-mark">✓</div>
+              <h4>已创建 3 个题库</h4>
+              <p>共写入 352 道题，2 行错误和 4 道重复题已跳过。错误报告保留 7 天。</p>
+              <div class="success-tags">
+                <span class="tag p0">公共基础知识 · 240 题</span>
+                <span class="tag p0">行政法 · 80 题</span>
+                <span class="tag p0">申论素材 · 32 题</span>
+              </div>
+              <div class="demo-actions center-actions">
+                <button class="btn ghost" data-import-reset>再演示一次</button>
+                <button class="btn primary" data-demo-action="go-bank">查看题库</button>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="demo-panel" data-demo-panel="practice">
+          <div class="demo-panel-head">
+            <div>
+              <h4>按条件刷题，错题自动沉淀</h4>
+              <p>五个筛选维度可组合；提交后立即反馈，答错写入错题本。</p>
+            </div>
+            <span class="tag blue">FR-04</span>
+          </div>
+          <div class="filter-grid">
+            <label>题型
+              <select id="prType">
+                <option value="all">全部题型</option>
+                <option value="single">单选题</option>
+                <option value="multiple">多选题</option>
+                <option value="judge">判断题</option>
+                <option value="fill">填空题</option>
+                <option value="short">简答题</option>
+              </select>
+            </label>
+            <label>答题结果
+              <select id="prResult">
+                <option value="all">全部结果</option>
+                <option value="correct">答对</option>
+                <option value="wrong">答错</option>
+                <option value="none">未做</option>
+              </select>
+            </label>
+            <label>判断题答案
+              <select id="prJudge">
+                <option value="all">不限</option>
+                <option value="true">答案为“正确”</option>
+                <option value="false">答案为“错误”</option>
+              </select>
+            </label>
+            <label>章节
+              <select id="prChapter">
+                <option value="all">全部章节</option>
+                <option value="第一章 总论">第一章 总论</option>
+                <option value="第二章 行政处罚">第二章 行政处罚</option>
+                <option value="第三章 行政复议">第三章 行政复议</option>
+              </select>
+            </label>
+            <label>难度
+              <select id="prDifficulty">
+                <option value="all">全部难度</option>
+                <option value="简单">简单</option>
+                <option value="中等">中等</option>
+                <option value="困难">困难</option>
+                <option value="未设置">未设置</option>
+              </select>
+            </label>
+          </div>
+          <div class="filter-bar">
+            <span>当前筛选匹配</span><strong id="prCount">0</strong><span>题（演示数据）</span>
+            <button class="btn primary small" id="practiceStart" style="margin-left:auto">按此筛选开始</button>
+          </div>
+          <div id="practiceCard">
+            <div class="practice-empty"><strong>选择筛选条件后开始练习</strong>演示会从匹配的题目中取第一题。</div>
+          </div>
+        </section>
+
+        <section class="demo-panel" data-demo-panel="exam">
+          <div class="demo-panel-head">
+            <div>
+              <h4>组卷、校验、交卷与成绩报告</h4>
+              <p>题量不足会明确提示缺口；生成后冻结题目快照，题库修改不影响本卷。</p>
+            </div>
+            <span class="tag blue">FR-05</span>
+          </div>
+          <div class="exam-form">
+            <label class="span-2">题库
+              <select id="exBank">
+                <option>公共基础知识 + 行政法</option>
+                <option>公共基础知识</option>
+                <option>行政法</option>
+              </select>
+            </label>
+            <label>考试时长（分钟）
+              <input type="number" id="exDuration" value="90" min="1" max="300">
+            </label>
+            <label>及格线（%）
+              <input type="number" id="exPass" value="60" min="1" max="100">
+            </label>
+            <label>单选题
+              <input type="number" id="exSingle" value="30" min="0" max="999">
+            </label>
+            <label>多选题
+              <input type="number" id="exMulti" value="10" min="0" max="999">
+            </label>
+            <label>判断题
+              <input type="number" id="exJudge" value="15" min="0" max="999">
+            </label>
+            <label>填空题
+              <input type="number" id="exFill" value="5" min="0" max="999">
+            </label>
+          </div>
+          <div class="exam-available">
+            <span class="avail-pill">可用单选 42</span>
+            <span class="avail-pill">可用多选 18</span>
+            <span class="avail-pill">可用判断 26</span>
+            <span class="avail-pill">可用填空 9</span>
+          </div>
+          <div class="exam-warning" id="examWarning"></div>
+          <div class="exam-summary" id="examSummary">
+            <div class="exam-summary-head">
+              <strong id="examTitle">模拟试卷 · 公共基础知识 + 行政法</strong>
+              <span class="tag p0">已生成快照</span>
+            </div>
+            <div class="exam-stat-row">
+              <div class="exam-stat"><b id="exTotal">60</b><span>总题量</span></div>
+              <div class="exam-stat"><b id="exScore">60</b><span>总分（每题 1 分）</span></div>
+              <div class="exam-stat"><b id="exTime">90</b><span>分钟</span></div>
+              <div class="exam-stat"><b id="exPassLine">36</b><span>及格分</span></div>
+            </div>
+          </div>
+          <div class="exam-result" id="examResult">
+            <div class="score-line"><b>82</b><span>分 · 满分 100</span><em>已及格</em></div>
+            <p class="small muted" style="margin:6px 0 0">用时 68 分钟 · 正确 82 题 / 共 100 题 · 错题已加入错题本</p>
+            <div class="report-grid">
+              <div class="report-item"><strong>单选题</strong>30 / 30 正确</div>
+              <div class="report-item"><strong>多选题</strong>15 / 20 正确</div>
+              <div class="report-item"><strong>判断题</strong>26 / 30 正确</div>
+              <div class="report-item"><strong>填空题</strong>11 / 20 正确</div>
+            </div>
+          </div>
+          <div class="demo-actions">
+            <span class="demo-hint" id="examHint">当前配置：60 题 · 60 分</span>
+            <button class="btn primary" id="examGenerate">生成模拟试卷</button>
+            <button class="btn ghost" id="examStart" style="display:none">开始答题（演示）</button>
+          </div>
+        </section>
+
+        <section class="demo-panel" data-demo-panel="search">
+          <div class="demo-panel-head">
+            <div>
+              <h4>搜题：先看题干，再决定是否看答案</h4>
+              <p>搜索范围仅限自有与共享题库；答案默认隐藏，避免直接泄题。</p>
+            </div>
+            <span class="tag blue">FR-06</span>
+          </div>
+          <div class="search-bar">
+            <input type="text" id="searchInput" value="行政复议" placeholder="输入题干、选项或解析中的关键词">
+            <button class="btn primary" id="searchBtn">搜索</button>
+          </div>
+          <div class="search-filters">
+            <button class="search-filter active" data-search-filter="all">全部题库</button>
+            <button class="search-filter" data-search-filter="公共基础知识">公共基础知识</button>
+            <button class="search-filter" data-search-filter="行政法">行政法</button>
+            <button class="search-filter" data-search-filter="判断题">判断题</button>
+          </div>
+          <div class="search-results" id="searchResults"></div>
+          <div class="search-empty" id="searchEmpty"><strong>没有匹配题目</strong>换一个关键词，或放宽题库/题型筛选。</div>
+        </section>
+
+        <section class="demo-panel" data-demo-panel="share">
+          <div class="demo-panel-head">
+            <div>
+              <h4>只读分享，随时可撤销</h4>
+              <p>接收方可以练习、模考、搜题，但不能编辑、转分享或下载题库。</p>
+            </div>
+            <span class="tag blue">FR-07</span>
+          </div>
+          <div class="sheet-switcher">
+            <span class="small muted">分享题库：</span>
+            <span class="tag blue">公共基础知识 · 240 题</span>
+          </div>
+          <div class="segmented">
+            <button class="active" data-share-mode="user">指定用户</button>
+            <button data-share-mode="link">分享链接</button>
+          </div>
+          <div class="share-form" id="shareForm">
+            <input type="text" id="shareTarget" value="lin_study" placeholder="输入用户名或昵称">
+            <button class="btn primary" id="shareGenerate">生成分享</button>
+          </div>
+          <div class="share-card" id="shareCard">
+            <div class="share-card-head">
+              <strong id="shareTitle">已分享给 lin_study</strong>
+              <span class="tag p0" id="shareStatusTag">生效中</span>
+            </div>
+            <div class="link-box" id="shareLinkBox" style="display:none"><span id="shareLinkText">https://tiku.local/s/7F3K9Q</span><button class="btn ghost small" id="shareCopy">复制</button></div>
+            <div class="perm-list">
+              <span class="perm">可练习</span><span class="perm">可模考</span><span class="perm">可搜题</span>
+              <span class="perm no">不可编辑</span><span class="perm no">不可转分享</span><span class="perm no">不可下载</span>
+            </div>
+            <div class="share-status" id="shareStatusText">接收方已可在“共享给我”中访问，所有修改会实时同步。</div>
+            <div class="demo-actions" style="margin-top:10px;padding-top:9px">
+              <button class="btn ghost small" id="shareRevoke">撤销分享</button>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </section>
+  <section class="section" id="features">
+    <div class="section-head">
+      <h2><span class="sec-no">06</span>功能需求</h2>
+      <p class="section-lead">以下每个模块定义触发条件、处理规则、结果与状态变化。跨模块共用的评分、去重、配额等规则统一放在第 07 节。</p>
+    </div>
+
+    <div class="callout blue">
+      <strong>功能编号：</strong>FR-01 账号与登录 · FR-02 题库管理 · FR-03 表格导入 · FR-04 练习与错题 · FR-05 模拟考试 · FR-06 搜题 · FR-07 分享与内置题库 · FR-08 管理后台。
+    </div>
+
+    <div class="req-block">
+      <div class="req-head"><span class="req-id">FR-01</span><h3>账号与登录</h3></div>
+      <p class="req-sub">目标：让用户建立可识别、可恢复、可管理的账号身份，并让管理员能控制谁能进入系统。</p>
+
+      <h4>触发与入口</h4>
+      <ul class="clean-list">
+        <li>未登录用户访问任意业务页面时，跳转到登录页；登录后回到原目标页面。</li>
+        <li>注册入口仅在管理员开启“开放注册”时显示；关闭后登录页只保留登录与“联系管理员”提示。</li>
+        <li>管理员可在后台直接创建普通用户或管理员账号。</li>
+      </ul>
+
+      <h4>注册字段与校验</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:15%">字段</th><th style="width:12%">必填</th><th>规则</th></tr></thead>
+          <tbody>
+            <tr><td><strong>用户名</strong></td><td>是</td><td>3–32 个字符；允许中文、字母、数字、下划线；不允许空格；全站唯一，英文不区分大小写。</td></tr>
+            <tr><td><strong>密码</strong></td><td>是</td><td>8–64 个字符；至少包含 1 个字母和 1 个数字；不允许与用户名相同。</td></tr>
+            <tr><td><strong>确认密码</strong></td><td>是</td><td>必须与密码一致。</td></tr>
+            <tr><td><strong>昵称</strong></td><td>否</td><td>1–30 个字符；用于页面展示和用户搜索；可重复。</td></tr>
+            <tr><td><strong>邮箱</strong></td><td>否</td><td>格式校验；P0 不发送验证邮件，不作为登录凭证；用于未来找回密码与通知。<span class="assumption">[假设, TBD]</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>登录与密码规则</h4>
+      <ul class="check-list">
+        <li>使用用户名 + 密码登录；错误提示统一为“用户名或密码错误”，不暴露账号是否存在。</li>
+        <li>连续 5 次登录失败后，账号锁定 10 分钟；管理员可在用户管理中解除锁定。<span class="assumption">[假设, TBD]</span></li>
+        <li>已禁用账号登录时提示“账号已停用，请联系管理员”，不进入任何业务页面。</li>
+        <li>修改密码必须输入旧密码；修改成功后，该账号的其他登录会话全部失效。</li>
+        <li>管理员重置密码后展示一次性临时密码；用户下次登录必须修改密码后才能进入业务页面。</li>
+        <li>P0 不提供邮件自助找回密码；忘记密码由管理员重置。P1 再增加邮件找回。<span class="assumption">[假设, TBD]</span></li>
+      </ul>
+
+      <h4>结果与异常</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:30%">场景</th><th>系统行为</th></tr></thead>
+          <tbody>
+            <tr><td>用户名已存在</td><td>注册提交失败，字段下方提示“用户名已被占用”；不创建账号。</td></tr>
+            <tr><td>密码强度不足</td><td>提示具体缺失项（长度、字母、数字）；不清空已填写的用户名。</td></tr>
+            <tr><td>开放注册被关闭</td><td>隐藏注册入口；直接访问注册地址时显示“注册已关闭”，提供返回登录入口。</td></tr>
+            <tr><td>账号被禁用或锁定</td><td>显示对应提示；不创建登录会话；已有会话下一次请求时失效。</td></tr>
+            <tr><td>管理员重置密码</td><td>生成临时密码；旧密码立即失效；用户首次登录被强制跳转到修改密码页。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="req-block">
+      <div class="req-head"><span class="req-id">FR-02</span><h3>题库管理</h3></div>
+      <p class="req-sub">目标：让用户看到自己拥有和可访问的题库，并能对题库与题目做必要的维护。</p>
+
+      <h4>题库列表</h4>
+      <p>“题库”页固定三个标签页：<strong>我的题库</strong>、<strong>共享给我</strong>、<strong>内置题库</strong>。三个标签页分别对应自有数据、只读授权数据和官方模板目录，不混排。</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:16%">区域</th><th>内容与行为</th></tr></thead>
+          <tbody>
+            <tr><td><strong>我的题库</strong></td><td>展示题库名称、来源标签（手动/表格导入/内置副本）、题目数、最近练习时间、分享状态。支持按名称搜索、按更新时间/题量排序。提供“新建空题库”和“导入表格”入口。</td></tr>
+            <tr><td><strong>共享给我</strong></td><td>展示题库名称、所有者、题量、分享时间。只读；可练习、模考、搜题；可“移除共享”（只从自己的列表移除，不影响所有者）。</td></tr>
+            <tr><td><strong>内置题库</strong></td><td>按分类浏览官方题库；展示题量、简介、更新时间、示例题；提供“导入到我的题库”。</td></tr>
+            <tr><td><strong>空状态</strong></td><td>我的题库为空时显示导入按钮与“手动新建”两个入口；共享为空时说明“别人分享给你的题库会出现在这里”；内置为空时提示“管理员尚未上架内置题库”。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>题库详情</h4>
+      <p>详情页顶部显示题库名称、来源、题目数、章节数、分享状态与存储占用；主操作包括“开始练习”“模拟考试”“分享”“编辑信息”“删除”。题目列表支持按题型、章节、难度筛选，并显示题干摘要、答案是否完整、更新时间。</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:18%">字段</th><th style="width:12%">必填</th><th>规则</th></tr></thead>
+          <tbody>
+            <tr><td><strong>题库名称</strong></td><td>是</td><td>1–60 个字符；同一用户下允许重名，但列表中需可区分；导入时默认使用子表名，重名自动追加“(2)”。</td></tr>
+            <tr><td><strong>题库简介</strong></td><td>否</td><td>最多 300 个字符；展示在题库详情与分享预览中。</td></tr>
+            <tr><td><strong>来源</strong></td><td>系统生成</td><td>手动创建 / 表格导入 / 内置副本；用户不可修改。</td></tr>
+            <tr><td><strong>题目数</strong></td><td>系统生成</td><td>按当前题库内有效题目实时统计；删除题目后立即更新。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>手动新增与编辑题目</h4>
+      <ul class="clean-list">
+        <li>手动新增题目与表格导入使用同一套题目字段和校验规则；选项按 A–F 顺序填写，至少 2 个选项（判断、填空、简答除外）。</li>
+        <li>题目编辑仅限题库所有者；共享接收方、内置题库浏览者不能编辑。</li>
+        <li>删除单题需二次确认；删除后该题从题库移除，相关错题项变为“已失效”，已生成的试卷快照不受影响。</li>
+        <li>内置题库副本视为自有题库，可编辑、分享、删除；原内置题库不受影响。</li>
+      </ul>
+
+      <h4>删除题库与权限边界</h4>
+      <ul class="check-list">
+        <li>仅所有者可删除自有题库；删除前必须输入题库名称确认，并明确提示“不可恢复、全部分享将失效”。</li>
+        <li>删除后，题库从所有列表与搜索结果中消失；该题库的全部分享立即失效；相关错题与考试记录保留摘要，但题目入口显示“原题已删除”。</li>
+        <li>共享接收方只能“移除共享”，不能删除、重命名、编辑或转分享题库。</li>
+        <li>管理员不能编辑或删除普通用户的私有题库；仅可在排障模式下只读查看并记录审计日志。</li>
+      </ul>
+
+      <h4>异常与反馈</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:30%">场景</th><th>系统行为</th></tr></thead>
+          <tbody>
+            <tr><td>题库为空</td><td>详情页显示“暂无题目”，提供“继续导入”和“手动新增题目”入口；练习、模考按钮禁用。</td></tr>
+            <tr><td>题目被删除但仍在错题本</td><td>错题项标记“已失效”，不可进入练习，只能移除。</td></tr>
+            <tr><td>存储配额不足</td><td>禁止导入或新增；提示当前用量与剩余空间；已有题库不受影响。</td></tr>
+            <tr><td>共享被撤销时正在查看</td><td>下一次请求跳转到“分享已失效”页；已生成的试卷快照仍可查看成绩，但不能开始新练习。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="req-block">
+      <div class="req-head"><span class="req-id">FR-03</span><h3>表格导入</h3></div>
+      <p class="req-sub">目标：把一份结构不统一的工作簿，在一次可检查的流程中变成多个结构化题库。导入是 P0 的核心能力。</p>
+
+      <h4>入口、文件与子表</h4>
+      <ul class="clean-list">
+        <li>入口：题库页“导入表格”、空题库页“继续导入”、管理后台“上传内置题库”。三处使用同一套导入向导。</li>
+        <li>支持 <code>.xlsx</code>、<code>.xls</code>、<code>.csv</code>；CSV 支持 UTF-8 与 GBK 编码，系统可自动识别，识别失败时让用户手动选择编码。</li>
+        <li>一个文件中的<strong>每个非空子表可生成一个独立题库</strong>。用户逐表勾选；未勾选的子表不进入导入。</li>
+        <li>一个子表只支持一张连续的数据表：一个标题行 + 若干数据行。不支持同一子表内多个表头、合并多行表头或多张表拼接。</li>
+        <li>空行自动忽略；只有部分列有值的行仍参与校验，不静默丢弃。</li>
+      </ul>
+
+      <h4>导入步骤</h4>
+      <div class="flow compact">
+        <div class="flow-step"><b>1</b><strong>上传并解析</strong><span>读取文件、子表、行列规模。</span></div>
+        <div class="flow-step"><b>2</b><strong>逐个确认</strong><span>选择题库名、标题行、列映射。</span></div>
+        <div class="flow-step"><b>3</b><strong>逐行校验</strong><span>错误、重复、类型推断结果。</span></div>
+        <div class="flow-step"><b>4</b><strong>确认导入</strong><span>写入有效行，生成错误报告。</span></div>
+      </div>
+
+      <h4>标题行与列映射</h4>
+      <ul class="check-list">
+        <li>标题行默认取子表第一条非空行；用户可在预览中改选任意一行，改选后下方数据预览即时刷新。</li>
+        <li>系统按常见表头名称自动匹配；用户可覆盖任何匹配结果，或将某列设为“忽略”。</li>
+        <li>一个系统字段只能映射到一个来源列；同一来源列不能重复映射给多个系统字段。</li>
+        <li>每个子表独立保存映射；切换子表时，系统尝试复用上一张表的映射。表头不一致时必须由用户重新确认。</li>
+        <li>导入前可修改每个子表生成的题库名称；默认使用子表名，重名自动追加序号。</li>
+      </ul>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:15%">系统字段</th><th style="width:10%">必填</th><th>映射与处理规则</th></tr></thead>
+          <tbody>
+            <tr><td><strong>题干</strong></td><td>是</td><td>题目正文。去掉首尾空白，保留内部换行；同一题库内不允许题干完全为空。</td></tr>
+            <tr><td><strong>题型</strong></td><td>条件必填</td><td>可选：单选题、多选题、判断题、填空题、简答题。未映射时按“题型推断规则”推断；无法唯一推断则该行报错。</td></tr>
+            <tr><td><strong>选项</strong></td><td>条件必填</td><td>支持两种模式：<strong>分列选项</strong>（A–F 各映射一列）或<strong>单列选项</strong>（一列内用换行、<code>|</code> 或连续 A. B. C. 分隔）。两种模式不可混用。</td></tr>
+            <tr><td><strong>答案</strong></td><td>是</td><td>按题型归一化后校验；选择题答案必须是选项字母；判断题答案必须是可识别的对/错；填空题支持多个可接受答案。</td></tr>
+            <tr><td><strong>解析</strong></td><td>否</td><td>题目解析，可包含换行；为空时题目仍可导入，练习时显示“暂无解析”。</td></tr>
+            <tr><td><strong>章节</strong></td><td>否</td><td>章节路径文本，如“第一章 总论/第一节 宪法”；分隔符统一为 <code>/</code>。为空时归入“未设置章节”。</td></tr>
+            <tr><td><strong>难度</strong></td><td>否</td><td>归一化为简单 / 中等 / 困难；无法识别时归为“未设置”，不阻断导入。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>题型推断规则</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:32%">表格特征</th><th>推断结果</th></tr></thead>
+          <tbody>
+            <tr><td>有 2 个及以上选项，答案是 1 个选项字母（如 A）</td><td>单选题</td></tr>
+            <tr><td>有 2 个及以上选项，答案是 2 个及以上选项字母（如 ABD）</td><td>多选题</td></tr>
+            <tr><td>无选项或仅有“正确/错误”两项，答案是 对/错/正确/错误/√/×/T/F</td><td>判断题</td></tr>
+            <tr><td>无选项，答案为非布尔文本</td><td>填空题</td></tr>
+            <tr><td>无法唯一判断，或题型列写了系统不支持的类型</td><td>该行报错，要求用户映射题型列或修改原表</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">简答题无法可靠推断，必须在题型列中明确写为“简答题/简答/问答”。<span class="assumption">[假设, TBD]</span></p>
+
+      <h4>答案归一化</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:14%">题型</th><th>接受的写法</th><th style="width:38%">归一化结果</th></tr></thead>
+          <tbody>
+            <tr><td><strong>单选题</strong></td><td><code>A</code>、<code>a</code>、<code>A.</code>、<code>（A）</code></td><td>统一为大写字母；只能有 1 个答案；必须存在于选项中。</td></tr>
+            <tr><td><strong>多选题</strong></td><td><code>ABD</code>、<code>A,B,D</code>、<code>A、B、D</code></td><td>去重并按字母排序；至少 2 个答案；每个答案必须存在。</td></tr>
+            <tr><td><strong>判断题</strong></td><td><code>对/错</code>、<code>正确/错误</code>、<code>√/×</code>、<code>T/F</code>、<code>是/否</code></td><td>统一为“正确 / 错误”；“是/否”按正确/错误处理。<span class="assumption">[假设, TBD]</span></td></tr>
+            <tr><td><strong>填空题</strong></td><td>一个答案，或用 <code>|</code> 分隔的多个可接受答案</td><td>保留原文；比较时忽略首尾空格与英文大小写；其他字符按原样匹配。</td></tr>
+            <tr><td><strong>简答题</strong></td><td>参考答案文本</td><td>作为参考答案展示；P0 不自动判分，练习时由用户自评。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>校验规则与错误报告</h4>
+      <p>校验必须在写入前完成。系统逐行检查，错误不阻断其他有效行：用户可选择“导入有效行”或“返回修改”。</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:29%">校验项</th><th>判定与提示</th></tr></thead>
+          <tbody>
+            <tr><td>题干为空</td><td>错误：“题干不能为空”。</td></tr>
+            <tr><td>答案为空</td><td>错误：“答案不能为空”。</td></tr>
+            <tr><td>选择题选项不足</td><td>错误：“单选题/多选题至少需要 2 个选项”。</td></tr>
+            <tr><td>选项不连续或重复</td><td>错误：“选项必须从 A 开始连续，且不能重复”。</td></tr>
+            <tr><td>答案不在选项中</td><td>错误：“答案 X 不存在于选项 A–F 中”。</td></tr>
+            <tr><td>多选题只有 1 个答案</td><td>错误：“多选题答案至少需要 2 个选项”；建议改为单选题。</td></tr>
+            <tr><td>判断题答案无法识别</td><td>错误：“无法识别判断题答案，请使用 正确/错误/对/错/√/×”。</td></tr>
+            <tr><td>题型不支持</td><td>错误：“题型 X 不支持，请使用单选/多选/判断/填空/简答”。</td></tr>
+            <tr><td>题库内重复题</td><td>警告并默认跳过；按“归一化题干 + 题型 + 排序后的选项 + 归一化答案”判重。用户可查看重复清单。</td></tr>
+            <tr><td>字段超长</td><td>题干或解析超过 5,000 字符、单个选项超过 1,000 字符时该行报错，不做静默截断。<span class="assumption">[假设, TBD]</span></td></tr>
+            <tr><td>整表无有效行</td><td>阻止导入，提示“没有可导入的题目”；保留错误报告。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>结果、状态与异常</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:28%">场景</th><th>系统行为</th></tr></thead>
+          <tbody>
+            <tr><td>部分行有效</td><td>任务状态“部分成功”；有效行写入，错误行跳过；页面显示有效/错误/重复计数；错误报告可下载 CSV，至少包含子表名、行号、字段、错误原因、原始值。</td></tr>
+            <tr><td>全部有效</td><td>任务状态“成功”；所有选中子表分别创建题库；显示每个题库的名称与题量。</td></tr>
+            <tr><td>全部无效</td><td>任务状态“失败”；不生成任何题库；保留错误报告供修改后重试。</td></tr>
+            <tr><td>文件损坏、加密或格式不支持</td><td>解析阶段失败；提示具体原因（如“文件已加密”“不是有效的 xlsx”）；不进入映射步骤。</td></tr>
+            <tr><td>文件过大或超过子表数量</td><td>上传前拒绝，提示限制值与当前值；不创建导入任务。<span class="assumption">详见 7.5</span></td></tr>
+            <tr><td>用户离开导入页</td><td>解析、校验和导入在后台继续；用户可从“导入记录”回到任务查看进度与结果；已完成结果保留 30 天。<span class="assumption">[假设, TBD]</span></td></tr>
+            <tr><td>存储配额不足</td><td>在校验完成、写入前检查；不足时阻止导入并提示剩余空间；已解析文件不写入题库。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <strong>关键原则：</strong>导入结果必须可解释。用户看到的“题量”必须等于导入摘要中的有效行数；任何被跳过或失败的行都要能在错误报告中找到原因。
+      </div>
+    </div>
+    <div class="req-block">
+      <div class="req-head"><span class="req-id">FR-04</span><h3>练习与错题</h3></div>
+      <p class="req-sub">目标：让用户按明确条件开始练习，提交后立即得到反馈，并让答错题目自动进入可复习的错题本。</p>
+
+      <h4>练习入口与方式</h4>
+      <p>入口在题库详情页与错题本页。进入练习前先展示筛选面板与匹配题量，用户确认后开始。练习方式如下：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:16%">方式</th><th>题目范围</th><th style="width:32%">顺序与恢复</th></tr></thead>
+          <tbody>
+            <tr><td><strong>顺序练习</strong></td><td>当前题库中满足筛选条件的全部题目。</td><td>按题库内原顺序；退出后可继续上次位置，已答题保留。</td></tr>
+            <tr><td><strong>随机练习</strong></td><td>当前题库中满足筛选条件的全部题目。</td><td>开始前打乱一次；练习中不再变化；退出后不保证恢复原顺序。</td></tr>
+            <tr><td><strong>章节练习</strong></td><td>指定一个章节路径及其子章节下的题目。</td><td>按章节内原顺序；可继续上次位置。</td></tr>
+            <tr><td><strong>专项练习</strong></td><td>按题型、答题结果、判断题答案、难度组合筛选的题目。</td><td>默认原顺序；用户可切换随机。</td></tr>
+            <tr><td><strong>错题练习</strong></td><td>错题本中“未掌握”的题目；可跨题库；可继续叠加题型、章节、难度筛选。</td><td>默认按最近答错时间倒序；答对后按规则更新掌握状态。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>五维筛选</h4>
+      <p>筛选条件之间为“且”关系。筛选面板实时显示匹配题量；匹配为 0 时不能开始，并展示空状态。答题结果以该用户对该题<strong>最近一次作答</strong>为准。</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:17%">维度</th><th>可选值</th><th style="width:38%">规则</th></tr></thead>
+          <tbody>
+            <tr><td><strong>题型</strong></td><td>全部、单选题、多选题、判断题、填空题、简答题</td><td>按题目题型精确匹配。</td></tr>
+            <tr><td><strong>答题结果</strong></td><td>全部、答对、答错、未做</td><td>“未做”指该用户从未作答过该题；重新作答后以最新结果覆盖。</td></tr>
+            <tr><td><strong>判断题答案</strong></td><td>不限、答案为“正确”、答案为“错误”</td><td>仅在题型为判断题时生效；依据题目的正确答案，不依据用户作答。选择其他题型时该筛选项置灰。</td></tr>
+            <tr><td><strong>章节</strong></td><td>全部、未设置、具体章节路径</td><td>选择父章节时包含其子章节；章节来自导入字段，不单独维护章节树。</td></tr>
+            <tr><td><strong>难度</strong></td><td>全部、简单、中等、困难、未设置</td><td>按归一化后的三档难度匹配；“未设置”作为独立档位保留。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>作答与即时反馈</h4>
+      <ul class="clean-list">
+        <li>题面显示题型、章节、难度、当前进度；单选与判断题点击选项；多选题可多选；填空题输入文本；简答题输入文本并自行对照参考答案。</li>
+        <li>用户点击“提交”后才判定；提交前可修改选项。提交后该题选项锁定，显示正确/错误、正确答案、解析、章节与难度。</li>
+        <li>多选题采用全对得分，不做部分给分；判断题、单选题按唯一正确答案；填空题按 7.1 的文本比对规则。</li>
+        <li>简答题不自动判分：提交后展示参考答案，用户选择“已掌握/未掌握”，结果计入答题记录，但不计入正确率；选择“未掌握”时可加入错题本。<span class="assumption">[假设, TBD]</span></li>
+        <li>每答一题立即保存，不等练习结束；网络中断恢复后保留已提交答案。</li>
+        <li>允许“跳过”：跳过记为“未做”，可继续下一题；练习结束前可返回作答。</li>
+        <li>练习结束展示报告：总题量、已答、答对、答错、未做、正确率、用时、题目列表；提供“重练错题”和“返回题库”。</li>
+      </ul>
+
+      <h4>错题本规则</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:27%">事件</th><th>错题本变化</th></tr></thead>
+          <tbody>
+            <tr><td>练习或考试中答错</td><td>若题目不在错题本，创建“未掌握”记录，答错次数 +1；若已存在，答错次数 +1，连续答对次数归零。</td></tr>
+            <tr><td>在错题练习中答对</td><td>连续答对次数 +1；达到 2 次时状态改为“已掌握”，从默认错题列表隐藏；未达到时仍显示“未掌握”。</td></tr>
+            <tr><td>在普通练习中答对</td><td>只更新答题记录，不改变错题本的连续答对次数；错题仍需通过错题练习掌握。</td></tr>
+            <tr><td>再次答错</td><td>连续答对次数归零；已掌握的题目重新变为“未掌握”。</td></tr>
+            <tr><td>手动“标记已掌握”</td><td>直接进入已掌握状态；可在“已掌握”筛选中恢复为未掌握。</td></tr>
+            <tr><td>手动“移出错题本”</td><td>删除错题项；之后再次答错会重新创建。</td></tr>
+            <tr><td>原题被删除或共享撤销</td><td>错题项变为“已失效”，不可打开，仅可移除。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">“连续答对 2 次”为默认阈值，管理员可在系统设置中调整。<span class="assumption">[假设, TBD]</span></p>
+
+      <h4>练习记录与异常</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:28%">场景</th><th>系统行为</th></tr></thead>
+          <tbody>
+            <tr><td>筛选无匹配题</td><td>显示“当前条件下没有题目”，列出可调整的维度；不进入答题页。</td></tr>
+            <tr><td>练习中途退出</td><td>已提交答案保留；顺序练习记录当前位置；再次进入时提示“继续上次练习 / 重新开始”。</td></tr>
+            <tr><td>刷新或断网</td><td>已提交答案不丢失；未提交的选择不作为答题记录；恢复后从当前题继续。</td></tr>
+            <tr><td>题库在练习中被删除</td><td>当前题可继续提交；下一题提示题库已删除，练习结束并保留已完成记录。</td></tr>
+            <tr><td>共享在练习中被撤销</td><td>已加载题目可提交；下一题无法加载，提示“分享已失效”，练习结束。</td></tr>
+            <tr><td>简答题未自评</td><td>报告中将该题标为“待自评”，不计入正确率，不影响错题本。<span class="assumption">[假设, TBD]</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="req-block">
+      <div class="req-head"><span class="req-id">FR-05</span><h3>模拟考试</h3></div>
+      <p class="req-sub">目标：让用户按考试规则从多个题库抽题，完成一次有计时、有分数、有解析的模拟考试，并把错题回流到错题本。</p>
+
+      <h4>组卷配置</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:17%">配置项</th><th style="width:13%">必填</th><th>规则</th></tr></thead>
+          <tbody>
+            <tr><td><strong>试卷名称</strong></td><td>是</td><td>默认“模拟试卷 + 生成时间”；用户可修改；1–60 个字符。</td></tr>
+            <tr><td><strong>题库范围</strong></td><td>是</td><td>可多选：自有题库、共享题库、内置副本。不能混合无权限题库；至少选择 1 个。</td></tr>
+            <tr><td><strong>题型与题量</strong></td><td>是</td><td>分别设置单选题、多选题、判断题、填空题数量；总题量为四项之和，至少 1 题。简答题在 P0 不进入自动判分试卷。<span class="assumption">[假设, TBD]</span></td></tr>
+            <tr><td><strong>章节范围</strong></td><td>否</td><td>默认全部；可选择多个章节路径；选择父章节时包含子章节。</td></tr>
+            <tr><td><strong>难度范围</strong></td><td>否</td><td>默认全部；可多选简单/中等/困难/未设置。</td></tr>
+            <tr><td><strong>考试时长</strong></td><td>是</td><td>1–300 分钟；默认 90 分钟。</td></tr>
+            <tr><td><strong>及格线</strong></td><td>是</td><td>按总分百分比设置，默认 60%；系统换算为及格分并四舍五入取整。</td></tr>
+            <tr><td><strong>题目顺序</strong></td><td>是</td><td>默认随机；题目顺序生成后固定。P0 不提供选项顺序打乱，避免答案字母与内容错位。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>生成与校验规则</h4>
+      <ul class="check-list">
+        <li>生成前按“题库 + 章节 + 难度 + 题型”统计可用题量，并按题目内容去重；跨题库重复题在试卷中只出现一次。</li>
+        <li>任一题型的可用题量少于设置值，均阻止生成，并显示“需求 / 可用 / 缺口”，精确到题型；用户可减少题量或放宽筛选。</li>
+        <li>总题量为 0 或所有题库均无题目时，生成按钮禁用并提示原因。</li>
+        <li>生成成功后创建试卷快照：保存题目内容、选项、正确答案、解析、题型、章节、难度与分值；之后题库编辑或删除不影响本卷。</li>
+        <li>试卷总分 = 题目数量 × 1 分；每题 1 分，不设主观题加权。及格分 = 总分 × 及格线百分比，四舍五入取整。</li>
+      </ul>
+
+      <h4>考试过程</h4>
+      <ul class="clean-list">
+        <li>倒计时由服务器时间控制，刷新、切后台、断网重连都继续计时；不以浏览器本地时间作为唯一依据。</li>
+        <li>逐题保存作答；用户可在交卷前任意修改答案；未作答题目在交卷时按错误计分。</li>
+        <li>交卷前显示确认弹窗，包含“未作答 N 题”；用户确认后交卷，答案锁定。</li>
+        <li>倒计时结束时自动交卷，状态记为“已超时交卷”；未作答题目不得分。</li>
+        <li>考试中页面显示总题量、已答、未答、剩余时间；题目导航可跳转，已答题有状态标记。</li>
+      </ul>
+
+      <h4>判分、报告与记录</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:25%">结果项</th><th>规则</th></tr></thead>
+          <tbody>
+            <tr><td><strong>自动判分</strong></td><td>单选、判断、填空自动判分；多选全对才得分；填空题按 7.1 文本规则。简答题不进入 P0 自动判分试卷。</td></tr>
+            <tr><td><strong>成绩</strong></td><td>得分、总分、正确率、用时、是否及格；正确率 = 答对题数 / 总题数，保留一位小数。</td></tr>
+            <tr><td><strong>题型拆分</strong></td><td>显示各题型的题量、答对、答错、未答与得分。</td></tr>
+            <tr><td><strong>逐题解析</strong></td><td>可查看每题的我的答案、正确答案、解析；支持“只看错题”。</td></tr>
+            <tr><td><strong>错题回流</strong></td><td>答错题目进入错题本；同一场考试中每题只记一次错误；连续答对次数归零。</td></tr>
+            <tr><td><strong>考试记录</strong></td><td>按时间倒序展示试卷名、得分、状态、用时；可查看结果与解析；“再考一次”生成新随机试卷，不复用旧卷。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>异常与边界</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:28%">场景</th><th>系统行为</th></tr></thead>
+          <tbody>
+            <tr><td>题量不足</td><td>阻止生成；给出每个题型的缺口；不清空用户已填配置。</td></tr>
+            <tr><td>考试中断网</td><td>已保存答案保留；页面提示“连接已断开，倒计时继续”；恢复后继续答题，超时仍自动交卷。</td></tr>
+            <tr><td>考试中题库被删除或分享被撤销</td><td>本卷为快照，可继续答题与查看成绩；但不能用该题库生成新试卷。</td></tr>
+            <tr><td>账号在考试中被禁用</td><td>保存已提交答案；禁止继续答题；重新启用后可查看该场记录，但本场按超时规则处理。<span class="assumption">[假设, TBD]</span></td></tr>
+            <tr><td>未交卷就关闭页面</td><td>考试记录保持“进行中”；再次进入可继续；超过结束时间后自动交卷。</td></tr>
+            <tr><td>重复点击交卷</td><td>只产生一次交卷结果；重复请求返回同一成绩，不重复计错题。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="req-block">
+      <div class="req-head"><span class="req-id">FR-06</span><h3>搜题</h3></div>
+      <p class="req-sub">目标：让用户在有权访问的题库中快速定位题目，先确认题干，再决定是否查看答案。</p>
+
+      <h4>搜索范围与查询</h4>
+      <ul class="clean-list">
+        <li>搜索范围：用户自有题库 + 共享给用户的题库。内置题库目录按分类浏览，不混入题目搜索结果；内置副本视为自有题库。</li>
+        <li>搜索字段：题干、选项文本、解析；不搜索答案字母本身，避免通过答案反查题目。<span class="assumption">[假设, TBD]</span></li>
+        <li>关键词去除首尾空格；支持 1–100 个字符；多个关键词以空格分隔时按“且”匹配。</li>
+        <li>英文不区分大小写；中文按原文匹配；不做拼音、同义词或模糊纠错。</li>
+        <li>可叠加筛选：题库、题型、章节、难度；筛选项只展示当前用户可访问范围内存在的值。</li>
+      </ul>
+
+      <h4>结果与操作</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:24%">区域</th><th>内容与行为</th></tr></thead>
+          <tbody>
+            <tr><td><strong>结果摘要</strong></td><td>显示命中题数、关键词、当前筛选条件；结果分页，默认每页 20 条。</td></tr>
+            <tr><td><strong>单条结果</strong></td><td>题干摘要（关键词高亮）、题型、章节、难度、所属题库、来源标签（自有/共享）。答案与解析默认隐藏。</td></tr>
+            <tr><td><strong>查看答案</strong></td><td>点击后展开正确答案与解析，不产生答题记录；可再次收起。</td></tr>
+            <tr><td><strong>练这题</strong></td><td>打开单题练习；提交后按普通练习规则记录答题结果并更新错题本。</td></tr>
+            <tr><td><strong>定位题库</strong></td><td>跳转到所属题库详情并定位到该题；共享题库只读。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>空状态与权限</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:28%">场景</th><th>系统行为</th></tr></thead>
+          <tbody>
+            <tr><td>关键词为空</td><td>不执行搜索，提示“请输入关键词”；不展示全量题目。</td></tr>
+            <tr><td>无结果</td><td>显示空状态，建议减少关键词或放宽题库/题型筛选；保留已输入内容。</td></tr>
+            <tr><td>题库被删除或分享撤销</td><td>该题库的结果立即从搜索中消失；已打开的题目下一次请求提示“内容不可用”。</td></tr>
+            <tr><td>搜索他人私有题库</td><td>不会出现在结果中；即使构造请求也无法读取。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="req-block">
+      <div class="req-head"><span class="req-id">FR-07</span><h3>分享与内置题库</h3></div>
+      <p class="req-sub">目标：让题库在用户之间以只读方式流动，并让管理员维护一套可供所有用户复制的内置题库。</p>
+
+      <h4>分享入口与方式</h4>
+      <p>题库所有者可在题库详情页发起分享。分享对象是<strong>整个题库</strong>，不支持只分享单题或部分章节。P0 提供两种方式：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:17%">方式</th><th>操作</th><th style="width:38%">接收方体验</th></tr></thead>
+          <tbody>
+            <tr><td><strong>指定用户</strong></td><td>按用户名或昵称搜索站内用户，选中后确认分享；可一次选择多个用户。</td><td>无需接受，题库立即出现在接收方“共享给我”列表；接收方也可主动移除。</td></tr>
+            <tr><td><strong>分享链接</strong></td><td>生成唯一链接；链接可复制、重置、撤销。访问者必须登录后才能查看。</td><td>打开链接看到题库封面与题量；点击“接受分享”后加入“共享给我”。链接本身不直接暴露题目内容。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>分享权限与规则</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:36%">能力</th><th>发起人</th><th>接收方</th></tr></thead>
+          <tbody>
+            <tr><td>查看题目与解析</td><td class="center">允许</td><td class="center">允许</td></tr>
+            <tr><td>练习、模拟考试、搜题</td><td class="center">允许</td><td class="center">允许</td></tr>
+            <tr><td>编辑题库信息、题目、删除</td><td class="center">允许</td><td class="center">禁止</td></tr>
+            <tr><td>转分享给第三人</td><td class="center">允许（自己的题库）</td><td class="center">禁止</td></tr>
+            <tr><td>下载、导出、批量复制题目</td><td class="center">允许（自有题库）</td><td class="center">禁止</td></tr>
+            <tr><td>撤销分享</td><td class="center">允许</td><td class="center">仅可移除自己的访问</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul class="clean-list">
+        <li>分享为<strong>只读授权，不复制题库</strong>。发起人修改、追加题目后，接收方看到的是最新内容；发起人删除题库，分享立即失效。</li>
+        <li>接收方从列表移除分享后，其已有的错题项与考试记录保留，但题目入口变为不可用；再次通过原链接访问时需重新接受（若分享仍生效）。</li>
+        <li>分享链接默认长期有效，直到发起人撤销或重置；P0 不提供有效期与访问密码，P1 再增加。<span class="assumption">[假设, TBD]</span></li>
+        <li>发起人账号被禁用时，其全部分享立即失效；重新启用后不自动恢复，需重新分享。</li>
+        <li>管理员可查看分享关系并强制撤销，但不能把共享题库转为自己所有。</li>
+        <li>分享不改变题库的存储归属与配额消耗；接收方不占用额外存储。</li>
+      </ul>
+
+      <h4>内置题库</h4>
+      <ul class="check-list">
+        <li>内置题库由管理员通过同一套表格导入向导上传，可归入一个分类；分类由管理员维护，未分类的题库归入“未分类”。</li>
+        <li>普通用户在内置题库标签页按分类浏览，可搜索题库名称；卡片展示名称、分类、题量、简介、更新时间和 3 道示例题。</li>
+        <li>“导入到我的题库”执行<strong>复制</strong>：把当前版本的全部题目复制为用户自有题库，来源标记为“内置副本”，占用用户配额。</li>
+        <li>副本与原内置题库相互独立：副本可编辑、分享、删除；管理员后续更新原题库，不会同步到已有副本。</li>
+        <li>普通用户不能直接编辑内置题库原件，也不能把原件加入错题本；必须先导入副本或由管理员维护。</li>
+        <li>管理员下架或删除内置题库后，目录中不再展示；已导入的副本不受影响。</li>
+        <li>同一内置题库可重复导入，但系统需提示“已导入过”，由用户确认后创建新副本；副本名称自动追加序号。</li>
+      </ul>
+
+      <h4>异常与边界</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:28%">场景</th><th>系统行为</th></tr></thead>
+          <tbody>
+            <tr><td>分享给不存在的用户</td><td>搜索无结果；不能提交分享；不创建空分享记录。</td></tr>
+            <tr><td>分享链接未登录访问</td><td>跳转登录页；登录后回到链接页；不向未登录用户展示题目内容。</td></tr>
+            <tr><td>链接被重置</td><td>旧链接立即失效并显示“链接已失效”；已接受分享的用户不受影响，除非发起人撤销其访问。</td></tr>
+            <tr><td>接收方正在练习时分享被撤销</td><td>当前题可提交；下一题提示“分享已失效”，练习结束并保留已答记录。</td></tr>
+            <tr><td>内置题库复制时配额不足</td><td>阻止复制；提示所需空间与剩余空间；不生成不完整副本。</td></tr>
+            <tr><td>内置题库正在被复制时被下架</td><td>已开始的复制可完成；新复制请求提示“题库已下架”。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="req-block">
+      <div class="req-head"><span class="req-id">FR-08</span><h3>管理后台</h3></div>
+      <p class="req-sub">目标：让管理员完成账号、内置题库、分享治理与系统设置，同时用审计日志约束管理行为。</p>
+
+      <h4>概览</h4>
+      <p>展示用户总数/正常/禁用、题库总数、题目总数、存储占用、生效分享数、近 7 天导入成功与失败数。所有数字可点击进入对应列表；不展示用户私有题目的具体内容。</p>
+
+      <h4>用户管理</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:20%">操作</th><th>规则</th></tr></thead>
+          <tbody>
+            <tr><td><strong>搜索与筛选</strong></td><td>按用户名、昵称搜索；按角色、状态筛选；分页展示。</td></tr>
+            <tr><td><strong>创建账号</strong></td><td>填写用户名、昵称、初始密码、角色；用户名唯一；创建后显示一次初始密码。</td></tr>
+            <tr><td><strong>禁用 / 启用</strong></td><td>禁用后立即失效会话与分享；数据保留。不能禁用自己或最后一个管理员。</td></tr>
+            <tr><td><strong>重置密码</strong></td><td>生成一次性临时密码；旧密码立即失效；用户下次登录强制改密。</td></tr>
+            <tr><td><strong>调整角色</strong></td><td>普通用户 ↔ 管理员；不能把最后一个管理员降级；操作记入审计日志。</td></tr>
+            <tr><td><strong>删除账号</strong></td><td>P0 不提供永久删除，只提供禁用，避免误删用户题库与记录。P1 再设计数据删除流程。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>内置题库管理</h4>
+      <ul class="clean-list">
+        <li>分类管理：新增、重命名、排序、删除空分类；删除分类前必须先把其中题库移到其他分类或下架。</li>
+        <li>上传题库：使用导入向导，上传后可编辑名称、简介、分类、示例题；导入结果与普通导入一致。</li>
+        <li>上架 / 下架：下架后普通用户目录不可见，已导入副本不受影响。</li>
+        <li>删除：二次确认；删除后目录不可见，已导入副本不受影响；操作记入审计日志。</li>
+      </ul>
+
+      <h4>分享治理与系统设置</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:26%">能力</th><th>规则</th></tr></thead>
+          <tbody>
+            <tr><td><strong>分享列表</strong></td><td>查看题库名称、发起人、接收人/链接、创建时间、状态；可按题库或用户搜索；不展示题目内容。</td></tr>
+            <tr><td><strong>强制撤销</strong></td><td>管理员可撤销任一分享；需填写原因；接收方立即失去访问；操作记入审计日志。</td></tr>
+            <tr><td><strong>开放注册</strong></td><td>开关；关闭后仅管理员可创建账号。</td></tr>
+            <tr><td><strong>存储配额</strong></td><td>设置每个普通用户的默认配额；调整后对新上传生效，已有数据不强制删除，但超额用户不能继续导入。</td></tr>
+            <tr><td><strong>上传限制</strong></td><td>设置单文件大小、子表数量、单表行数、单次导入题目上限；不得超过部署环境的硬限制。</td></tr>
+            <tr><td><strong>分享开关</strong></td><td>关闭后现有分享链接失效，用户不能新建分享；已生成的试卷快照不受影响。</td></tr>
+            <tr><td><strong>错题掌握阈值</strong></td><td>默认连续答对 2 次；管理员可调整，调整后从下一次答对开始生效。<span class="assumption">[假设, TBD]</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>审计日志与管理员边界</h4>
+      <ul class="check-list">
+        <li>记录：账号创建、禁用/启用、角色调整、密码重置、内置题库上传/上下架/删除、分享强制撤销、系统设置修改、排障模式访问。</li>
+        <li>每条日志包含操作人、动作、目标、结果、时间与原因（强制撤销和排障模式必填）；日志只读，管理员不能编辑或删除。</li>
+        <li>审计日志默认保留 180 天，可由管理员导出；到期清理策略在部署时配置。<span class="assumption">[假设, TBD]</span></li>
+        <li>管理员默认只能看到用户题库元数据，不能进入题目内容；排障模式为只读，需填写原因并留痕。</li>
+        <li>管理员不能修改普通用户的题库、不能代替用户答题、不能把用户题库转给自己。</li>
+      </ul>
+
+      <h4>异常与边界</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:29%">场景</th><th>系统行为</th></tr></thead>
+          <tbody>
+            <tr><td>最后一个管理员被降级/禁用</td><td>阻止操作，提示“系统至少需要保留一个正常管理员”。</td></tr>
+            <tr><td>管理员删除自己</td><td>P0 无删除入口；禁用自己也被阻止。</td></tr>
+            <tr><td>调整配额导致用户超额</td><td>用户已有数据保留；提示超额；禁止新增导入与内置复制，直到用量下降。</td></tr>
+            <tr><td>上传内置题库失败</td><td>保留失败任务与错误报告；不生成内置题库；不影响已上架内容。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="rules">
+    <div class="section-head">
+      <h2><span class="sec-no">07</span>共享业务规则</h2>
+      <p class="section-lead">以下规则被多个模块引用，只在这里定义一次。功能章节不再重复定义评分、去重和配额。</p>
+    </div>
+
+    <h3>7.1 答案比对与判分</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:15%">题型</th><th style="width:38%">判定规则</th><th>练习反馈</th></tr></thead>
+        <tbody>
+          <tr><td><strong>单选题</strong></td><td>用户选择的选项字母与正确答案完全一致。</td><td>正确/错误；显示正确答案与解析。</td></tr>
+          <tr><td><strong>多选题</strong></td><td>用户选择集合与正确答案集合完全相同；少选、多选、错选均为错误；不做部分给分。</td><td>正确/错误；显示完整正确选项集合。</td></tr>
+          <tr><td><strong>判断题</strong></td><td>用户选择“正确/错误”与归一化后的正确答案一致。</td><td>正确/错误；显示正确答案与解析。</td></tr>
+          <tr><td><strong>填空题</strong></td><td>去首尾空格、英文不区分大小写后，与任一可接受答案完全一致；多个可接受答案以 <code>|</code> 分隔。</td><td>正确/错误；显示全部可接受答案。</td></tr>
+          <tr><td><strong>简答题</strong></td><td>P0 不自动判分；用户对照参考答案自评“已掌握/未掌握”。</td><td>不算正确率，不自动进入错题本；自评“未掌握”时可由用户手动加入错题本。<span class="assumption">[假设, TBD]</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small muted">考试中每题 1 分；未作答按错误计 0 分；多选不设部分分。正确率 = 答对题数 ÷ 总题数，保留一位小数。</p>
+
+    <h3>7.2 难度与章节归一化</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:18%">字段</th><th>导入值示例</th><th style="width:45%">归一化规则</th></tr></thead>
+        <tbody>
+          <tr><td><strong>难度</strong></td><td>简单、容易、低、1、2；中等、一般、中、3；困难、难、高、4、5</td><td>统一为简单 / 中等 / 困难；数字 1–2 → 简单，3 → 中等，4–5 → 困难；无法识别 → 未设置。</td></tr>
+          <tr><td><strong>章节</strong></td><td>第一章 总论 / 第一节 宪法；第一章 总论 &gt; 第一节 宪法；第一章 总论 → 第一节 宪法</td><td>分隔符统一为 <code>/</code>；保留层级文本，不自动创建章节管理页；筛选父章节时包含其子章节。</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="footnote">难度采用三档而不是五档，目的是让筛选和组卷更易理解；原始数字映射规则为产品判断，可在评审时调整。<span class="assumption">[假设, TBD]</span></p>
+
+    <h3>7.3 去重规则</h3>
+    <ul class="clean-list">
+      <li><strong>题库内去重：</strong>按“归一化题干 + 题型 + 排序后的选项文本 + 归一化答案”生成判重键。同一题库中重复的题目在导入时默认跳过并计入重复数。</li>
+      <li><strong>跨题库：</strong>允许相同题目存在于不同题库；用户自己的题库之间不做强制去重。</li>
+      <li><strong>组卷去重：</strong>一次试卷从多个题库抽题时，按同一判重键去重，重复题在试卷中只出现一次。</li>
+      <li><strong>手动新增：</strong>保存时提示“可能重复”，由用户决定是否继续；不强制阻止。</li>
+    </ul>
+
+    <h3>7.4 权限、删除与生命周期</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:24%">事件</th><th>影响</th></tr></thead>
+        <tbody>
+          <tr><td><strong>删除题库</strong></td><td>题从所有列表和搜索中移除；分享全部失效；错题项变“已失效”；考试记录保留成绩摘要，题目入口显示“原题已删除”；操作不可恢复。</td></tr>
+          <tr><td><strong>删除单题</strong></td><td>题库题量减少；该题错题项变“已失效”；已生成的试卷快照保留原题内容，可继续查看解析。</td></tr>
+          <tr><td><strong>撤销分享</strong></td><td>接收方立即失去新访问权；进行中的练习在下一题结束；已生成的试卷快照仍可查看成绩；错题项变“已失效”。</td></tr>
+          <tr><td><strong>禁用账号</strong></td><td>会话失效、分享失效；题库与记录保留；重新启用不恢复旧链接。</td></tr>
+          <tr><td><strong>内置题库下架</strong></td><td>目录不可见；已导入副本不受影响。</td></tr>
+          <tr><td><strong>共享题库更新</strong></td><td>只读接收方看到最新内容；已生成的试卷快照不更新。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>7.5 配额、保留与上传限制</h3>
+    <p>以下为默认值，管理员可在系统设置中调整；具体数值需结合部署服务器的 PHP 上传限制、磁盘容量与备份策略确认。<span class="assumption">[假设, TBD]</span></p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:32%">项目</th><th>默认值</th><th style="width:30%">说明</th></tr></thead>
+        <tbody>
+          <tr><td>单个上传文件</td><td>20 MB</td><td>超出在上传前拒绝。</td></tr>
+          <tr><td>单文件子表数量</td><td>30 个</td><td>仅统计非空子表。</td></tr>
+          <tr><td>单子表数据行</td><td>5,000 行</td><td>超出提示拆分文件。</td></tr>
+          <tr><td>单次导入题目上限</td><td>10,000 题</td><td>所有选中子表合计。</td></tr>
+          <tr><td>每用户存储配额</td><td>1 GB</td><td>按题库内容与附件占用估算；管理员可调整。</td></tr>
+          <tr><td>导入任务与错误报告</td><td>保留 30 天</td><td>错误报告可下载；到期清理。</td></tr>
+          <tr><td>原始上传文件</td><td>导入完成后 24 小时内删除</td><td>减少占用与隐私风险；如需重试，用户重新上传。</td></tr>
+          <tr><td>审计日志</td><td>180 天</td><td>可由管理员导出后清理。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>7.6 时间、数据与隐私边界</h3>
+    <ul class="check-list">
+      <li>系统统一使用部署服务器时区（默认 Asia/Shanghai）记录时间；考试倒计时以服务器时间为准。</li>
+      <li>密码只保存不可逆哈希，不以明文形式存储或展示；管理员重置时只展示一次临时密码。</li>
+      <li>上传文件必须校验扩展名、实际文件类型与解析结果；文件名不直接作为存储路径。</li>
+      <li>普通用户的数据边界在每次读取时校验，不能仅依赖前端隐藏入口。</li>
+      <li>管理员排障模式、强制撤销分享、重置密码、调整角色必须写入审计日志。</li>
+    </ul>
+  </section>
+
+  <section class="section" id="exceptions">
+    <div class="section-head">
+      <h2><span class="sec-no">08</span>异常与边界</h2>
+      <p class="section-lead">把最容易在开发阶段被忽略的失败路径列在一起，便于设计和测试逐项确认。</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:24%">场景</th><th style="width:37%">系统行为</th><th>用户可见结果 / 恢复方式</th></tr></thead>
+        <tbody>
+          <tr><td><strong>上传文件损坏或加密</strong></td><td>解析失败，不创建导入任务。</td><td>提示“文件已加密”或“不是有效的表格文件”；用户可重新选择文件。</td></tr>
+          <tr><td><strong>所有行校验失败</strong></td><td>不写入任何题库。</td><td>显示失败原因与错误报告；用户修改原表后重试。</td></tr>
+          <tr><td><strong>部分行失败</strong></td><td>只写入有效行，任务标记“部分成功”。</td><td>显示有效/错误/重复数量；可下载错误报告；题库可用。</td></tr>
+          <tr><td><strong>导入重复题</strong></td><td>默认跳过，不打断导入。</td><td>显示重复题数量与清单；用户可接受或修改原表。</td></tr>
+          <tr><td><strong>存储配额不足</strong></td><td>阻止写入，不删除已有内容。</td><td>提示所需空间与剩余空间；用户删除题库或联系管理员调整配额。</td></tr>
+          <tr><td><strong>大文件或长时间导入</strong></td><td>后台执行，显示进度；用户可离开页面。</td><td>从导入记录查看状态；失败可下载错误报告后重试。</td></tr>
+          <tr><td><strong>练习筛选无结果</strong></td><td>不进入答题页。</td><td>显示空状态与可调整的筛选维度。</td></tr>
+          <tr><td><strong>模考题量不足</strong></td><td>阻止生成。</td><td>显示每个题型的“需求/可用/缺口”；减少题量或放宽筛选。</td></tr>
+          <tr><td><strong>考试断网</strong></td><td>已保存答案保留，服务器倒计时继续。</td><td>提示连接断开；恢复后继续；超时自动交卷。</td></tr>
+          <tr><td><strong>考试超时</strong></td><td>自动交卷，未答题按错误计分。</td><td>成绩页标记“已超时交卷”；可查看解析。</td></tr>
+          <tr><td><strong>分享被撤销</strong></td><td>新请求拒绝；已生成试卷快照保留。</td><td>提示“分享已失效”；错题项标记失效；可移除记录。</td></tr>
+          <tr><td><strong>账号被禁用</strong></td><td>会话失效，禁止登录与继续考试。</td><td>提示联系管理员；数据保留，重新启用后可查看历史记录。</td></tr>
+          <tr><td><strong>题目在原题库被删除</strong></td><td>错题项失效；试卷快照保留。</td><td>错题本显示“原题已删除”；考试解析仍可查看快照。</td></tr>
+          <tr><td><strong>搜索结果为空或关键词过短</strong></td><td>不展示全量题目。</td><td>提示更换关键词或放宽筛选；保留输入内容。</td></tr>
+          <tr><td><strong>最后一个管理员被降级/禁用</strong></td><td>阻止操作。</td><td>提示“至少保留一个正常管理员”。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" id="nfr">
+    <div class="section-head">
+      <h2><span class="sec-no">09</span>运行约束与非功能要求</h2>
+      <p class="section-lead">产品需要能部署在自有服务器上，通过浏览器和移动端稳定使用；不依赖第三方 SaaS。</p>
+    </div>
+
+    <h3>9.1 访问方式与适配</h3>
+    <div class="grid-2">
+      <div class="card">
+        <span class="card-label">Web 与移动端</span>
+        <ul class="clean-list">
+          <li>响应式 Web，覆盖桌面、平板和手机；手机端使用底部导航，桌面端使用侧边导航。</li>
+          <li>提供可安装的 PWA：缓存应用外壳与静态资源，不要求离线做题；离线时提示网络不可用。</li>
+          <li>APP 访问在 P0 通过 PWA 或 WebView 壳实现，业务规则不变；不开发原生离线题库。<span class="assumption">[假设, TBD]</span></li>
+          <li>支持现代 Chrome、Edge、Safari 与微信内置浏览器；不支持 IE。</li>
+        </ul>
+      </div>
+      <div class="card tint">
+        <span class="card-label">部署形态</span>
+        <ul class="clean-list">
+          <li>自托管部署在宝塔、群晖 Web Station 等 PHP 环境；数据库与上传目录位于自有服务器。</li>
+          <li>不依赖外部题库服务、对象存储或第三方账号体系；邮件服务为可选能力。</li>
+          <li>建议启用 HTTPS；PWA 安装与安全的登录会话需要 HTTPS。</li>
+          <li>备份由部署方负责，至少覆盖数据库与上传目录；系统不内置云备份。</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>9.2 性能与稳定性</h3>
+    <ul class="check-list">
+      <li>题库列表、题目列表与搜索结果分页展示，避免一次性渲染大量题目。</li>
+      <li>大文件导入在后台执行并显示进度；页面刷新不丢失任务状态。</li>
+      <li>考试倒计时、答案保存与交卷不受页面刷新影响；重复交卷不产生重复成绩。</li>
+      <li>单个题库包含数千道题时，练习翻页、筛选和提交仍可正常操作；具体容量上限由部署环境决定。<span class="assumption">[假设, TBD]</span></li>
+      <li>导入、考试交卷等关键动作需要防重复提交；失败时给出可重试的明确提示。</li>
+    </ul>
+
+    <h3>9.3 安全与数据保护</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:22%">要求</th><th>产品层约束</th></tr></thead>
+        <tbody>
+          <tr><td><strong>身份与会话</strong></td><td>密码不可逆存储；登录失败限流；禁用账号立即失效；修改密码使其他会话失效。</td></tr>
+          <tr><td><strong>权限校验</strong></td><td>每次读取题库、题目、分享、考试记录时校验所有权或授权关系；不能依赖前端隐藏。</td></tr>
+          <tr><td><strong>输入与上传</strong></td><td>校验文件类型与解析结果；限制文件大小、子表数与行数；避免将原始文件名直接用于存储路径。</td></tr>
+          <tr><td><strong>常见 Web 风险</strong></td><td>防止 XSS、CSRF、越权访问与恶意文件上传；管理操作需要二次确认与审计。</td></tr>
+          <tr><td><strong>隐私边界</strong></td><td>普通用户不能访问他人私有题库；管理员默认不读取私有题目内容；排障访问需填写原因并留痕。</td></tr>
+          <tr><td><strong>数据恢复</strong></td><td>题库删除不可恢复；部署方应定期备份数据库与上传目录；P1 再考虑回收站。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>9.4 可维护性</h3>
+    <ul class="clean-list">
+      <li>系统设置项、错误提示、状态名称集中管理，避免不同页面出现互相矛盾的说法。</li>
+      <li>导入错误报告中的字段名与界面字段名保持一致，方便用户对照原表修改。</li>
+      <li>所有关键状态变化（导入、分享、考试、账号）在页面上有明确反馈，不只依赖日志。</li>
+    </ul>
+  </section>
+
+  <section class="section" id="open">
+    <div class="section-head">
+      <h2><span class="sec-no">10</span>待确认问题</h2>
+      <p class="section-lead">以下问题会改变产品边界或实现成本。当前文档已给出默认假设，评审时需要明确取舍。</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:6%">编号</th><th style="width:25%">待确认问题</th><th style="width:36%">影响</th><th>当前默认</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Q1</strong></td><td>APP 是 PWA / WebView 壳，还是必须上应用商店的原生包？</td><td>影响开发范围、推送能力、离线题库与审核成本。</td><td>P0 用响应式 Web + PWA；WebView 壳作为可选交付；不做原生离线。</td></tr>
+          <tr><td><strong>Q2</strong></td><td>每个用户的默认存储配额与单文件上限是多少？</td><td>影响服务器磁盘规划、导入体验与管理员设置。</td><td>1 GB / 用户；20 MB / 文件；30 子表；5,000 行 / 子表；10,000 题 / 次导入。</td></tr>
+          <tr><td><strong>Q3</strong></td><td>分享是否长期有效？是否需要公开题库广场？</td><td>影响分享治理、版权与内容审核。</td><td>只读、需登录、默认长期有效；不提供公开广场。</td></tr>
+          <tr><td><strong>Q4</strong></td><td>简答题是否要进入模拟考试并计分？</td><td>影响判分模型、成绩构成与用户自评流程。</td><td>P0 仅练习自评，不进入自动判分试卷。</td></tr>
+          <tr><td><strong>Q5</strong></td><td>内置题库的版权、来源与下架流程由谁负责？</td><td>影响合规、投诉处理与管理员职责。</td><td>管理员上传时确认授权；提供下架与强制撤销；P1 增加投诉入口。</td></tr>
+          <tr><td><strong>Q6</strong></td><td>注册默认开放还是邀请制？</td><td>影响账号增长、滥用风险与管理成本。</td><td>默认开放，管理员可随时关闭；管理员可创建账号。</td></tr>
+          <tr><td><strong>Q7</strong></td><td>管理员是否允许查看用户私有题库内容？</td><td>影响隐私边界与故障处理能力。</td><td>默认不可见；仅排障模式只读访问，填写原因并记入审计日志。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <strong>评审建议：</strong>先确认 Q1、Q3、Q4 与 Q7。这四项分别决定客户端范围、分享治理、考试判分模型和隐私边界；其余数值型限制可以在开发前由管理员配置确定。
+    </div>
+  </section>
+
+  <footer class="doc-footer">
+    <span>刷题系统 · 产品需求文档 v1.0</span>
+    <span>生成日期 2026-10-24 · 本文档为产品需求，不包含接口与数据库设计</span>
+  </footer>
+</div>
+</main>
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (sel, root) { return (root || document).querySelector(sel); };
+  var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
+
+  function esc(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
+    });
+  }
+
+  var toastTimer = null;
+  function toast(message) {
+    var node = $("#toast");
+    if (!node) {
+      node = document.createElement("div");
+      node.id = "toast";
+      node.className = "toast";
+      document.body.appendChild(node);
+    }
+    node.textContent = message;
+    node.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { node.classList.remove("show"); }, 2200);
+  }
+
+  /* ---------- Navigation ---------- */
+  var navLinks = $$(".nav a");
+  var sections = navLinks.map(function (a) { return $(a.getAttribute("href")); }).filter(Boolean);
+
+  function syncNav() {
+    var pos = window.scrollY + 140;
+    var current = sections[0];
+    sections.forEach(function (sec) {
+      if (sec.offsetTop <= pos) current = sec;
+    });
+    navLinks.forEach(function (a) {
+      a.classList.toggle("active", a.getAttribute("href") === "#" + current.id);
+    });
+  }
+  window.addEventListener("scroll", syncNav, { passive: true });
+  syncNav();
+
+  /* ---------- Demo tabs ---------- */
+  var demoTabs = $$(".demo-tab");
+  var demoPanels = $$(".demo-panel");
+  demoTabs.forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      var key = tab.getAttribute("data-demo-tab");
+      demoTabs.forEach(function (t) {
+        t.classList.toggle("active", t === tab);
+        t.setAttribute("aria-selected", t === tab ? "true" : "false");
+      });
+      demoPanels.forEach(function (panel) {
+        panel.classList.toggle("active", panel.getAttribute("data-demo-panel") === key);
+      });
+    });
+  });
+
+  /* ---------- Import wizard ---------- */
+  var importStepper = $("#importStepper");
+  var importSteps = $$(".import-step");
+
+  function showImportStep(step) {
+    importSteps.forEach(function (node) {
+      node.classList.toggle("active", Number(node.getAttribute("data-import-step")) === step);
+    });
+    if (importStepper) {
+      $$(".step", importStepper).forEach(function (dot) {
+        var index = Number(dot.getAttribute("data-step-dot"));
+        dot.classList.toggle("active", index === step);
+        dot.classList.toggle("done", index < step);
+      });
+    }
+  }
+
+  $$("[data-import-next]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var from = Number(btn.getAttribute("data-import-next"));
+      if (from === 1) {
+        var selected = $$(".sheet-item input:checked").length;
+        if (!selected) { toast("请至少选择一个子表"); return; }
+      }
+      showImportStep(from + 1);
+    });
+  });
+  $$("[data-import-back]").forEach(function (btn) {
+    btn.addEventListener("click", function () { showImportStep(Number(btn.getAttribute("data-import-back"))); });
+  });
+  $$("[data-import-confirm]").forEach(function (btn) {
+    btn.addEventListener("click", function () { showImportStep(4); });
+  });
+  $$("[data-import-reset]").forEach(function (btn) {
+    btn.addEventListener("click", function () { showImportStep(1); });
+  });
+  $$(".sheet-item").forEach(function (item) {
+    var input = $("input", item);
+    item.addEventListener("click", function (event) {
+      if (event.target !== input) {
+        event.preventDefault();
+        input.checked = !input.checked;
+      }
+      item.classList.toggle("checked", input.checked);
+    });
+  });
+  $$(".sheet-pill").forEach(function (pill) {
+    pill.addEventListener("click", function () {
+      $$(".sheet-pill").forEach(function (p) { p.classList.toggle("active", p === pill); });
+    });
+  });
+  $$(".radio-card").forEach(function (card) {
+    card.addEventListener("click", function () {
+      var input = $("input", card);
+      input.checked = true;
+      $$(".radio-card").forEach(function (c) { c.classList.toggle("checked", c === card); });
+    });
+  });
+  $$("[data-demo-action]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var action = btn.getAttribute("data-demo-action");
+      if (action === "download") toast("错误报告已生成（演示），实际会下载 CSV 文件");
+      if (action === "go-bank") toast("演示：跳转到「我的题库」，共 3 个新题库");
+    });
+  });
+
+  /* ---------- Practice ---------- */
+  var PRACTICE = [
+    { id: 1, type: "single", result: "none", judge: "", chapter: "第二章 行政处罚", diff: "中等",
+      stem: "当事人要求听证的，应当在行政机关告知后几日内提出？",
+      options: [{ k: "A", t: "3 日" }, { k: "B", t: "5 日" }, { k: "C", t: "7 日" }, { k: "D", t: "15 日" }],
+      answer: ["B"], analysis: "根据行政处罚相关规定，当事人要求听证的，应当在行政机关告知后五日内提出。" },
+    { id: 2, type: "judge", result: "wrong", judge: "false", chapter: "第一章 总论", diff: "简单",
+      stem: "行政机关作出的所有行政行为都可以申请行政复议。",
+      options: [{ k: "正确", t: "正确" }, { k: "错误", t: "错误" }],
+      answer: ["错误"], analysis: "并非所有行政行为都可申请复议，如内部行政行为、行政指导等通常不属于行政复议受案范围。" },
+    { id: 3, type: "multiple", result: "correct", judge: "", chapter: "第三章 行政复议", diff: "困难",
+      stem: "行政复议期间，下列哪些情形可以停止执行具体行政行为？",
+      options: [{ k: "A", t: "被申请人认为需要停止执行的" }, { k: "B", t: "行政复议机关认为需要停止执行的" }, { k: "C", t: "申请人申请停止执行，复议机关认为其要求合理，决定停止执行的" }, { k: "D", t: "法律规定停止执行的" }],
+      answer: ["A", "B", "D"], analysis: "行政复议期间具体行政行为不停止执行；但被申请人、复议机关认为需要停止，或法律规定停止的，可以停止执行。C 项缺少“决定停止执行”的法定条件表述。" },
+    { id: 4, type: "judge", result: "correct", judge: "true", chapter: "第二章 行政处罚", diff: "简单",
+      stem: "行政处罚决定书必须载明当事人的姓名或者名称。",
+      options: [{ k: "正确", t: "正确" }, { k: "错误", t: "错误" }],
+      answer: ["正确"], analysis: "行政处罚决定书应当载明当事人姓名或名称、违法事实、处罚依据、处罚内容等事项。" },
+    { id: 5, type: "fill", result: "none", judge: "", chapter: "第一章 总论", diff: "中等",
+      stem: "行政复议机关应当自受理申请之日起____日内作出行政复议决定（法律另有规定的除外）。",
+      options: [],
+      answer: ["60日", "六十日"], analysis: "行政复议机关应当自受理申请之日起六十日内作出行政复议决定；情况复杂可依法延长。" },
+    { id: 6, type: "single", result: "wrong", judge: "", chapter: "第一章 总论", diff: "困难",
+      stem: "我国现行宪法公布施行于哪一年？",
+      options: [{ k: "A", t: "1978 年" }, { k: "B", t: "1982 年" }, { k: "C", t: "1988 年" }, { k: "D", t: "1999 年" }],
+      answer: ["B"], analysis: "现行宪法为 1982 年宪法，于 1982 年 12 月 4 日公布施行，此后经过多次修正。" },
+    { id: 7, type: "judge", result: "none", judge: "true", chapter: "第三章 行政复议", diff: "中等",
+      stem: "行政复议决定书一经送达，即发生法律效力。",
+      options: [{ k: "正确", t: "正确" }, { k: "错误", t: "错误" }],
+      answer: ["正确"], analysis: "行政复议决定书一经送达即发生法律效力；法律规定为终局裁决的，申请人不得再提起行政诉讼。" },
+    { id: 8, type: "short", result: "none", judge: "", chapter: "第三章 行政复议", diff: "困难",
+      stem: "简述行政复议与行政诉讼的主要区别。",
+      options: [],
+      answer: ["行政复议由行政机关审查，程序相对简便、不收费；行政诉讼由人民法院审理，适用司法程序。两者在受理范围、审查标准、裁决效力和救济途径上存在差异。"],
+      analysis: "答题要点：受理机关、程序性质、审查范围、法律效力、是否收费。" }
+  ];
+
+  var TYPE_LABEL = { single: "单选题", multiple: "多选题", judge: "判断题", fill: "填空题", short: "简答题" };
+  var practiceState = { list: [], index: 0, answered: false, selected: [] };
+
+  function normalizeText(text) {
+    return String(text || "").replace(/^\s+|\s+$/g, "").toLowerCase();
+  }
+
+  function currentFilter() {
+    return {
+      type: $("#prType").value,
+      result: $("#prResult").value,
+      judge: $("#prJudge").value,
+      chapter: $("#prChapter").value,
+      diff: $("#prDifficulty").value
+    };
+  }
+
+  function filteredPractice() {
+    var f = currentFilter();
+    return PRACTICE.filter(function (q) {
+      if (f.type !== "all" && q.type !== f.type) return false;
+      if (f.result !== "all" && q.result !== f.result) return false;
+      if (f.judge !== "all" && (q.type !== "judge" || q.judge !== f.judge)) return false;
+      if (f.chapter !== "all" && q.chapter !== f.chapter) return false;
+      if (f.diff !== "all" && q.diff !== f.diff) return false;
+      return true;
+    });
+  }
+
+  function updatePracticeCount() {
+    var count = filteredPractice().length;
+    $("#prCount").textContent = count;
+    return count;
+  }
+
+  function answerText(q) {
+    if (q.type === "judge") return q.answer[0];
+    if (q.type === "fill" || q.type === "short") return q.answer.join(" / ");
+    return q.answer.join("、");
+  }
+
+  function renderPracticeQuestion() {
+    var box = $("#practiceCard");
+    var q = practiceState.list[practiceState.index];
+    if (!q) {
+      box.innerHTML = '<div class="practice-empty"><strong>练习完成</strong>本次筛选的题目已全部作答，可在报告或错题本中继续。</div>';
+      return;
+    }
+    practiceState.answered = false;
+    practiceState.selected = [];
+
+    var html = '<div class="question-card">';
+    html += '<div class="q-meta"><span class="tag blue">' + TYPE_LABEL[q.type] + '</span><span class="tag gray">' + esc(q.chapter) + '</span><span class="tag accent">' + esc(q.diff) + '</span>';
+    html += '<span class="q-index">' + (practiceState.index + 1) + " / " + practiceState.list.length + "</span></div>";
+    html += '<p class="q-stem">' + esc(q.stem) + "</p>";
+
+    if (q.type === "single" || q.type === "multiple" || q.type === "judge") {
+      html += '<div class="option-list">';
+      q.options.forEach(function (o) {
+        var label = q.type === "judge" ? (o.k === "正确" ? "✓" : "×") : o.k;
+        html += '<button class="option-btn" data-option="' + esc(o.k) + '" type="button"><span class="option-key">' + label + "</span><span>" + esc(o.t) + "</span></button>";
+      });
+      html += "</div>";
+      html += '<p class="demo-hint" style="margin:9px 0 0">' + (q.type === "multiple" ? "多选题：可选择多个选项" : "选择一个选项后提交") + "</p>";
+    } else if (q.type === "fill") {
+      html += '<input class="practice-input" id="prFill" type="text" placeholder="输入答案，忽略首尾空格">';
+    } else {
+      html += '<input class="practice-input" id="prFill" type="text" placeholder="输入你的答案要点，提交后对照参考答案">';
+    }
+
+    html += '<div id="prFeedback"></div>';
+    html += '<div class="demo-actions" style="margin-top:12px;padding-top:10px">';
+    html += '<span class="demo-hint" id="prHint">提交后立即显示正确答案与解析</span>';
+    html += '<button class="btn primary" data-pr-submit type="button">提交答案</button>';
+    html += "</div></div>";
+    box.innerHTML = html;
+  }
+
+  function markOptions(q, selected) {
+    $$(".option-btn", $("#practiceCard")).forEach(function (btn) {
+      var key = btn.getAttribute("data-option");
+      btn.classList.remove("selected");
+      if (selected.indexOf(key) > -1) btn.classList.add("selected");
+      if (q.answer.indexOf(key) > -1) btn.classList.add("correct");
+      else if (selected.indexOf(key) > -1) btn.classList.add("wrong");
+    });
+  }
+
+  function submitPractice() {
+    if (practiceState.answered) return;
+    var q = practiceState.list[practiceState.index];
+    if (!q) return;
+    var feedback = $("#prFeedback");
+
+    if (q.type === "single" || q.type === "judge") {
+      if (practiceState.selected.length !== 1) { toast("请选择一个选项"); return; }
+    }
+    if (q.type === "multiple" && practiceState.selected.length === 0) { toast("请至少选择一个选项"); return; }
+
+    var correct = false;
+    var detail = "";
+
+    if (q.type === "short") {
+      var value = ($("#prFill") && $("#prFill").value || "").replace(/^\s+|\s+$/g, "");
+      if (!value) { toast("请输入你的答案要点"); return; }
+      practiceState.answered = true;
+      feedback.innerHTML = '<div class="feedback neutral"><strong>参考答案</strong><div class="answer-line">' + esc(q.answer[0]) + "</div><div class=\"analysis-box\">" + esc(q.analysis) + "</div></div>" +
+        '<div class="demo-actions" style="margin-top:9px;padding-top:8px"><span class="demo-hint">简答题不计入正确率</span><button class="btn ghost small" data-pr-self="yes" type="button">已掌握</button><button class="btn ghost small" data-pr-self="no" type="button">未掌握</button></div>';
+      return;
+    }
+
+    if (q.type === "fill") {
+      var input = ($("#prFill") && $("#prFill").value || "").replace(/^\s+|\s+$/g, "");
+      if (!input) { toast("请输入答案"); return; }
+      correct = q.answer.some(function (a) { return normalizeText(a) === normalizeText(input); });
+      detail = "你的答案：" + esc(input) + "<br>";
+    } else {
+      var selected = practiceState.selected.slice().sort().join("");
+      var expected = q.answer.slice().sort().join("");
+      correct = selected === expected;
+      detail = "你的答案：" + esc(practiceState.selected.join("、")) + "<br>";
+      markOptions(q, practiceState.selected);
+    }
+
+    practiceState.answered = true;
+    var cls = correct ? "good" : "bad";
+    var title = correct ? "回答正确" : "回答错误";
+    feedback.innerHTML = '<div class="feedback ' + cls + '"><strong>' + title + "</strong>" + detail +
+      '<div class="answer-line">正确答案：' + esc(answerText(q)) + "</div>" +
+      '<div class="analysis-box">' + esc(q.analysis) + "</div></div>";
+
+    var hint = $("#prHint");
+    if (hint) hint.textContent = correct ? "已记录本题；答错题会自动进入错题本" : "本题已加入错题本，可在错题练习中复习";
+    var actions = $(".demo-actions", $("#practiceCard"));
+    if (actions && !$("[data-pr-next]", actions)) {
+      var next = document.createElement("button");
+      next.type = "button";
+      next.className = "btn primary small";
+      next.setAttribute("data-pr-next", "1");
+      next.textContent = practiceState.index + 1 < practiceState.list.length ? "下一题" : "完成练习";
+      actions.appendChild(next);
+    }
+  }
+
+  $("#prType").addEventListener("change", updatePracticeCount);
+  $("#prResult").addEventListener("change", updatePracticeCount);
+  $("#prJudge").addEventListener("change", updatePracticeCount);
+  $("#prChapter").addEventListener("change", updatePracticeCount);
+  $("#prDifficulty").addEventListener("change", updatePracticeCount);
+
+  $("#practiceStart").addEventListener("click", function () {
+    var list = filteredPractice();
+    if (!list.length) { toast("当前条件下没有题目，请调整筛选"); return; }
+    practiceState = { list: list, index: 0, answered: false, selected: [] };
+    renderPracticeQuestion();
+  });
+
+  $("#practiceCard").addEventListener("click", function (event) {
+    var option = event.target.closest(".option-btn");
+    if (option && !practiceState.answered) {
+      var q = practiceState.list[practiceState.index];
+      var key = option.getAttribute("data-option");
+      if (q.type === "multiple") {
+        var pos = practiceState.selected.indexOf(key);
+        if (pos > -1) practiceState.selected.splice(pos, 1);
+        else practiceState.selected.push(key);
+      } else {
+        practiceState.selected = [key];
+      }
+      $$(".option-btn", $("#practiceCard")).forEach(function (btn) {
+        btn.classList.toggle("selected", practiceState.selected.indexOf(btn.getAttribute("data-option")) > -1);
+      });
+      return;
+    }
+    if (event.target.closest("[data-pr-submit]")) { submitPractice(); return; }
+    if (event.target.closest("[data-pr-next]")) {
+      practiceState.index += 1;
+      renderPracticeQuestion();
+      return;
+    }
+    var self = event.target.closest("[data-pr-self]");
+    if (self) {
+      var yes = self.getAttribute("data-pr-self") === "yes";
+      toast(yes ? "已标记为掌握（演示）" : "已加入错题本（演示）");
+      var nextBtn = $("[data-pr-next]", $("#practiceCard"));
+      if (!nextBtn) {
+        var actions = $(".demo-actions", $("#practiceCard"));
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn primary small";
+        btn.setAttribute("data-pr-next", "1");
+        btn.textContent = "下一题";
+        actions.appendChild(btn);
+      }
+    }
+  });
+
+  updatePracticeCount();
+
+  /* ---------- Exam ---------- */
+  var EXAM_AVAILABLE = { single: 42, multiple: 18, judge: 26, fill: 9 };
+  var examInputs = { single: $("#exSingle"), multiple: $("#exMulti"), judge: $("#exJudge"), fill: $("#exFill") };
+
+  function examConfig() {
+    var config = { single: 0, multiple: 0, judge: 0, fill: 0 };
+    Object.keys(examInputs).forEach(function (key) {
+      var value = parseInt(examInputs[key].value, 10);
+      config[key] = isNaN(value) ? 0 : Math.max(0, value);
+    });
+    config.duration = parseInt($("#exDuration").value, 10) || 0;
+    config.pass = parseInt($("#exPass").value, 10) || 0;
+    config.total = config.single + config.multiple + config.judge + config.fill;
+    return config;
+  }
+
+  function resetExam() {
+    $("#examSummary").classList.remove("show");
+    $("#examResult").classList.remove("show");
+    $("#examStart").style.display = "none";
+  }
+
+  $("#examGenerate").addEventListener("click", function () {
+    var config = examConfig();
+    var problems = [];
+    var labels = { single: "单选题", multiple: "多选题", judge: "判断题", fill: "填空题" };
+
+    Object.keys(EXAM_AVAILABLE).forEach(function (key) {
+      if (config[key] > EXAM_AVAILABLE[key]) {
+        problems.push(labels[key] + "：需求 " + config[key] + " 题，可用 " + EXAM_AVAILABLE[key] + " 题，缺 " + (config[key] - EXAM_AVAILABLE[key]) + " 题");
+      }
+    });
+    if (config.total === 0) problems.push("总题量不能为 0，请至少设置一种题型的数量");
+    if (config.duration < 1 || config.duration > 300) problems.push("考试时长需在 1–300 分钟之间");
+    if (config.pass < 1 || config.pass > 100) problems.push("及格线需在 1–100 之间");
+
+    var warning = $("#examWarning");
+    if (problems.length) {
+      warning.innerHTML = "<strong>暂时无法生成试卷</strong><br>" + problems.map(esc).join("<br>");
+      warning.classList.add("show");
+      resetExam();
+      return;
+    }
+
+    warning.classList.remove("show");
+    $("#examResult").classList.remove("show");
+    $("#examTitle").textContent = "模拟试卷 · " + $("#exBank").value;
+    $("#exTotal").textContent = config.total;
+    $("#exScore").textContent = config.total;
+    $("#exTime").textContent = config.duration;
+    $("#exPassLine").textContent = Math.round(config.total * config.pass / 100);
+    $("#exPass").dataset.total = config.total;
+    $("#examHint").textContent = "当前配置：" + config.total + " 题 · " + config.total + " 分";
+    $("#examSummary").classList.add("show");
+    $("#examStart").style.display = "inline-block";
+    $("#examStart").dataset.config = JSON.stringify(config);
+    toast("试卷已生成，题目顺序已随机固定");
+  });
+
+  $("#examStart").addEventListener("click", function () {
+    var config = JSON.parse(this.dataset.config || "{}");
+    var total = config.total || 0;
+    if (!total) return;
+    var rate = 0.82;
+    var counts = {
+      single: [config.single, Math.round(config.single * rate)],
+      multiple: [config.multiple, Math.round(config.multiple * 0.75)],
+      judge: [config.judge, Math.round(config.judge * 0.87)],
+      fill: [config.fill, Math.round(config.fill * 0.55)]
+    };
+    var correct = 0;
+    Object.keys(counts).forEach(function (key) { correct += counts[key][1]; });
+    var score = correct;
+    var passed = score >= Math.round(total * (config.pass || 60) / 100);
+    var labels = { single: "单选题", multiple: "多选题", judge: "判断题", fill: "填空题" };
+
+    var grid = Object.keys(counts).map(function (key) {
+      return '<div class="report-item"><strong>' + labels[key] + "</strong>" + counts[key][1] + " / " + counts[key][0] + " 正确</div>";
+    }).join("");
+
+    var result = $("#examResult");
+    result.innerHTML = '<div class="score-line"><b>' + score + "</b><span>分 · 满分 " + total + "</span><em>" + (passed ? "已及格" : "未及格") + "</em></div>" +
+      '<p class="small muted" style="margin:6px 0 0">用时 ' + Math.round((config.duration || 0) * 0.76) + " 分钟 · 正确 " + correct + " 题 / 共 " + total + " 题 · 错题已加入错题本</p>" +
+      '<div class="report-grid">' + grid + "</div>";
+    result.classList.add("show");
+  });
+
+  $$(".exam-form input").forEach(function (input) {
+    input.addEventListener("input", function () {
+      var config = examConfig();
+      $("#examHint").textContent = "当前配置：" + config.total + " 题 · " + config.total + " 分";
+      $("#examWarning").classList.remove("show");
+    });
+  });
+  $("#exBank").addEventListener("change", function () {
+    $("#examWarning").classList.remove("show");
+  });
+
+  /* ---------- Search ---------- */
+  var SEARCH_DATA = [
+    { bank: "公共基础知识", type: "判断题", chapter: "第三章 行政复议", diff: "中等",
+      stem: "行政复议机关应当自受理申请之日起六十日内作出行政复议决定。",
+      options: "正确 / 错误", answer: "正确", analysis: "法律另有规定的除外；情况复杂经批准可以延长，但延长期限最多不超过三十日。" },
+    { bank: "行政法", type: "单选题", chapter: "第三章 行政复议", diff: "困难",
+      stem: "行政复议期间，具体行政行为不停止执行，但在下列哪种情形下可以停止执行？",
+      options: "A. 申请人提出申请 B. 复议机关认为需要停止执行 C. 第三人提出异议 D. 被申请人变更行政行为",
+      answer: "B", analysis: "行政复议期间不停止执行是原则，复议机关认为需要停止执行的，可以停止执行。" },
+    { bank: "行政法", type: "多选题", chapter: "第三章 行政复议", diff: "中等",
+      stem: "下列哪些事项可以申请行政复议？",
+      options: "A. 对罚款决定不服 B. 对吊销许可证不服 C. 对内部记过处分不服 D. 对行政拘留不服",
+      answer: "A、B、D", analysis: "内部人事处理不属于行政复议受案范围，其余三项属于可申请复议的具体行政行为。" },
+    { bank: "公共基础知识", type: "判断题", chapter: "第一章 总论", diff: "简单",
+      stem: "行政复议和行政诉讼都只能由具体行政行为的相对人提出。",
+      options: "正确 / 错误", answer: "错误", analysis: "与具体行政行为有利害关系的公民、法人或者其他组织均可依法申请复议或提起诉讼。" },
+    { bank: "公共基础知识", type: "填空题", chapter: "第三章 行政复议", diff: "中等",
+      stem: "公民、法人或者其他组织认为具体行政行为侵犯其合法权益的，可以自知道该行为之日起____日内提出行政复议申请。",
+      options: "—", answer: "60日 / 六十日", analysis: "一般申请期限为知道该具体行政行为之日起六十日内。" }
+  ];
+
+  var searchFilter = "all";
+  var searchKeyword = "行政复议";
+
+  function highlight(text, keyword) {
+    var safe = esc(text);
+    if (!keyword) return safe;
+    var safeKeyword = esc(keyword).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return safe.replace(new RegExp("(" + safeKeyword + ")", "gi"), "<mark>$1</mark>");
+  }
+
+  function runSearch() {
+    var input = $("#searchInput");
+    searchKeyword = input.value.replace(/^\s+|\s+$/g, "");
+    var results = $("#searchResults");
+    var empty = $("#searchEmpty");
+
+    if (!searchKeyword) {
+      results.innerHTML = "";
+      empty.querySelector("strong").textContent = "请输入关键词";
+      empty.classList.add("show");
+      return;
+    }
+
+    var keyword = searchKeyword.toLowerCase();
+    var list = SEARCH_DATA.filter(function (item) {
+      var matched = (item.stem + " " + item.options + " " + item.analysis).toLowerCase().indexOf(keyword) > -1;
+      if (!matched) return false;
+      if (searchFilter === "all") return true;
+      if (searchFilter === "判断题") return item.type === "判断题";
+      return item.bank === searchFilter;
+    });
+
+    if (!list.length) {
+      results.innerHTML = "";
+      empty.querySelector("strong").textContent = "没有匹配题目";
+      empty.classList.add("show");
+      return;
+    }
+
+    empty.classList.remove("show");
+    results.innerHTML = list.map(function (item, index) {
+      return '<div class="search-result">' +
+        "<h5>" + highlight(item.stem, searchKeyword) + "</h5>" +
+        '<p>' + highlight(item.options, searchKeyword) + "</p>" +
+        '<div class="search-result-meta"><span class="tag blue">' + esc(item.type) + '</span><span class="tag gray">' + esc(item.bank) + '</span><span class="tag gray">' + esc(item.chapter) + '</span><span class="tag accent">' + esc(item.diff) + '</span></div>' +
+        '<div class="search-result-answer" id="searchAnswer' + index + '"><strong>答案：' + esc(item.answer) + "</strong><br>解析：" + highlight(item.analysis, searchKeyword) + "</div>" +
+        '<div class="demo-actions" style="margin-top:8px;padding-top:7px"><span class="demo-hint">来源：' + esc(item.bank) + '</span><button class="btn ghost small" data-search-toggle="' + index + '" type="button">查看答案</button><button class="btn ghost small" data-search-practice="' + index + '" type="button">练这题</button></div>' +
+        "</div>";
+    }).join("");
+  }
+
+  $("#searchBtn").addEventListener("click", runSearch);
+  $("#searchInput").addEventListener("keydown", function (event) {
+    if (event.key === "Enter") runSearch();
+  });
+  $$(".search-filter").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      searchFilter = chip.getAttribute("data-search-filter");
+      $$(".search-filter").forEach(function (c) { c.classList.toggle("active", c === chip); });
+      runSearch();
+    });
+  });
+  $("#searchResults").addEventListener("click", function (event) {
+    var toggle = event.target.closest("[data-search-toggle]");
+    if (toggle) {
+      var box = $("#searchAnswer" + toggle.getAttribute("data-search-toggle"));
+      var shown = box.classList.toggle("show");
+      toggle.textContent = shown ? "收起答案" : "查看答案";
+      return;
+    }
+    if (event.target.closest("[data-search-practice]")) {
+      toast("演示：打开单题练习，提交后按普通练习规则记录");
+    }
+  });
+  runSearch();
+
+  /* ---------- Share ---------- */
+  var shareMode = "user";
+
+  function resetShareCard() {
+    var card = $("#shareCard");
+    card.classList.add("show");
+    $("#shareStatusTag").className = "tag p0";
+    $("#shareStatusTag").textContent = "生效中";
+    $("#shareRevoke").disabled = false;
+  }
+
+  $$("[data-share-mode]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      shareMode = btn.getAttribute("data-share-mode");
+      $$("[data-share-mode]").forEach(function (b) { b.classList.toggle("active", b === btn); });
+      $("#shareTarget").placeholder = shareMode === "user" ? "输入用户名或昵称" : "链接备注（可选）";
+      $("#shareTarget").value = shareMode === "user" ? "lin_study" : "";
+      $("#shareCard").classList.remove("show");
+    });
+  });
+
+  $("#shareGenerate").addEventListener("click", function () {
+    var target = $("#shareTarget").value.replace(/^\s+|\s+$/g, "");
+    if (shareMode === "user" && !target) { toast("请输入要分享的用户名或昵称"); return; }
+
+    resetShareCard();
+    if (shareMode === "user") {
+      $("#shareTitle").textContent = "已分享给 " + target;
+      $("#shareLinkBox").style.display = "none";
+      $("#shareStatusText").textContent = "接收方已可在「共享给我」中访问，题目更新会实时同步。";
+    } else {
+      $("#shareTitle").textContent = "分享链接已生成";
+      $("#shareLinkBox").style.display = "flex";
+      $("#shareLinkText").textContent = "https://tiku.local/s/7F3K9Q";
+      $("#shareStatusText").textContent = "登录用户打开链接并点击「接受分享」后，可在「共享给我」中只读访问。";
+    }
+  });
+
+  $("#shareCopy").addEventListener("click", function () {
+    var text = $("#shareLinkText").textContent;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { toast("链接已复制"); }, function () { toast("复制失败，请手动选择链接"); });
+    } else {
+      toast("演示链接：" + text);
+    }
+  });
+
+  $("#shareRevoke").addEventListener("click", function () {
+    $("#shareStatusTag").className = "tag red";
+    $("#shareStatusTag").textContent = "已撤销";
+    $("#shareStatusText").textContent = "接收方已失去访问权限；已生成的试卷快照仍可查看成绩。";
+    $("#shareRevoke").disabled = true;
+    toast("分享已撤销（演示）");
+  });
+})();
+</script>
+</body>
+</html>
