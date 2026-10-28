@@ -395,8 +395,8 @@ route('#/practice/run',()=>{
       }
     }
     savePS();
-    // 答对自动下一题：短暂展示 √ 反馈后跳转；期间用户手动操作则取消
-    if(correct===true&&PS.autoNext){
+    // 答对自动下一题：单选/判断始终生效，其他题型按「答对自动下一题」开关
+    if(correct===true&&(PS.autoNext||q.type==='single'||q.type==='judge')){
       const idx0=PS.idx,qid0=q.id;
       setTimeout(()=>{
         if(!PS||PS.idx!==idx0||!PS.answers[qid0])return;
