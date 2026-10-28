@@ -501,7 +501,7 @@ function finishPractice(){
   };
 }
 /* ================= 错题本 ================= */
-let wbStatus='unmastered',wbType='全部',wbBank='全部',wbPage=1;
+let wbStatus='unmastered',wbType='全部',wbBank='全部',wbPage=1,wbSel=new Set();
 route('#/wrongbook',()=>{
   if(!requireAuth())return;
   refreshWrongValidity();
@@ -516,6 +516,9 @@ route('#/wrongbook',()=>{
   list.sort((a,b)=>b.lastWrongTs-a.lastWrongTs);
   const per=15,pages=Math.ceil(list.length/per);wbPage=Math.min(wbPage,Math.max(1,pages||1));
   const pageList=list.slice((wbPage-1)*per,wbPage*per);
+  const pageIds=pageList.map(w=>w.id);
+  /* 清理已不存在的选中项 */
+  wbSel=new Set([...wbSel].filter(id=>DB.wrongBook.some(w=>w.id===id&&w.userId===u.id)));
   render(`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div><h1 class="page-title">错题本</h1><div class="page-sub">答错自动收录；连续答对 ${DB.settings.wrongThreshold||2} 次标记已掌握</div></div>
       <button class="btn primary" id="wbPractice" ${counts.unmastered?'':'disabled'}>开始错题练习（${counts.unmastered}）</button>
@@ -530,9 +533,16 @@ route('#/wrongbook',()=>{
         <select class="input" id="wbType" style="max-width:180px"><option>全部</option>${TYPE_KEYS.map(t=>`<option value="${t}" ${wbType===t?'selected':''}>${TYPES[t]}</option>`).join('')}</select>
         <select class="input" id="wbBank" style="max-width:240px"><option>全部</option>${wbBankIds.map(id=>{const b=bankById(id);return b?`<option value="${id}" ${wbBank===id?'selected':''}>${esc(b.name)}</option>`:'';}).join('')}</select>
       </div>
-      ${pageList.length?`<div class="table-wrap"><table><thead><tr><th>题干</th><th>题型</th><th>错次数</th><th>连对</th><th>最近答错</th><th>操作</th></tr></thead><tbody>
+      ${pageList.length?`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <span class="small muted">已选 <strong id="wbSelN" style="color:var(--brand)">0</strong> 题</span>
+        <button class="btn sm danger" id="wbBatchRm" disabled>移除选中</button>
+        <button class="btn sm ghost" id="wbBatchClear" disabled>清空选择</button>
+        <span class="small muted">勾选表格首列可多选，表头勾选框可全选本页</span>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th style="width:36px"><input type="checkbox" id="wbAll" title="全选本页"></th><th>题干</th><th>题型</th><th>错次数</th><th>连对</th><th>最近答错</th><th>操作</th></tr></thead><tbody>
         ${pageList.map(w=>{const q=questionById(w.questionId);const b=q&&bankById(q.bankId);
           return `<tr>
+            <td><input type="checkbox" class="wb-ck" data-id="${w.id}" ${wbSel.has(w.id)?'checked':''}></td>
             <td style="max-width:340px">${q?esc(q.stem.slice(0,50))+(q.stem.length>50?'…':''):'<span class="muted">原题已删除</span>'}${b?`<div class="small muted">${esc(b.name)}</div>`:''}</td>
             <td>${q?typeTag(q.type):'-'}</td><td>${w.wrongCount}</td><td>${w.streak}/${DB.settings.wrongThreshold||2}</td>
             <td class="small">${fmtTime(w.lastWrongTs).slice(0,10)}</td>
@@ -546,11 +556,39 @@ route('#/wrongbook',()=>{
       :`<div class="empty"><div class="big">✅</div><p>${wbStatus==='unmastered'?'暂无未掌握错题，保持住！':wbStatus==='mastered'?'暂无已掌握错题':'暂无已失效记录'}</p></div>`}
     </div>`,'#/wrongbook');
   $('#wbPractice').onclick=()=>location.hash='#/practice/wrong';
-  $$('.tab[data-s]').forEach(t=>t.onclick=()=>{wbStatus=t.dataset.s;wbPage=1;dispatch();});
-  $('#wbType').onchange=e=>{wbType=e.target.value;wbPage=1;dispatch();};
-  $('#wbBank').onchange=e=>{wbBank=e.target.value;wbPage=1;dispatch();};
+  $$('.tab[data-s]').forEach(t=>t.onclick=()=>{wbStatus=t.dataset.s;wbPage=1;wbSel.clear();dispatch();});
+  $('#wbType').onchange=e=>{wbType=e.target.value;wbPage=1;wbSel.clear();dispatch();};
+  $('#wbBank').onchange=e=>{wbBank=e.target.value;wbPage=1;wbSel.clear();dispatch();};
   $$('[data-wbgo]').forEach(b=>b.onclick=()=>location.hash='#/practice/one/'+b.dataset.wbgo);
   $$('[data-wbmaster]').forEach(b=>b.onclick=()=>{const w=DB.wrongBook.find(x=>x.id===b.dataset.wbmaster);w.status='mastered';saveDB();dispatch();});
   $$('[data-wbunmaster]').forEach(b=>b.onclick=()=>{const w=DB.wrongBook.find(x=>x.id===b.dataset.wbunmaster);w.status='unmastered';w.streak=0;saveDB();dispatch();});
-  $$('[data-wbrm]').forEach(b=>b.onclick=()=>{DB.wrongBook=DB.wrongBook.filter(x=>x.id!==b.dataset.wbrm);saveDB();toast('已移除','ok');dispatch();});
+  $$('[data-wbrm]').forEach(b=>b.onclick=()=>{DB.wrongBook=DB.wrongBook.filter(x=>x.id!==b.dataset.wbrm);wbSel.delete(b.dataset.wbrm);saveDB();toast('已移除','ok');dispatch();});
+  /* ---- 批量选择与移除 ---- */
+  const syncSelUI=()=>{
+    const n=wbSel.size;
+    const sn=$('#wbSelN');if(sn)sn.textContent=n;
+    const rm=$('#wbBatchRm');if(rm)rm.disabled=!n;
+    const cl=$('#wbBatchClear');if(cl)cl.disabled=!n;
+    const all=$('#wbAll');if(all)all.checked=pageIds.length>0&&pageIds.every(id=>wbSel.has(id));
+  };
+  $$('.wb-ck').forEach(cb=>cb.onchange=()=>{
+    if(cb.checked)wbSel.add(cb.dataset.id);else wbSel.delete(cb.dataset.id);
+    syncSelUI();
+  });
+  const allBox=$('#wbAll');if(allBox)allBox.onchange=()=>{
+    if(allBox.checked)pageIds.forEach(id=>wbSel.add(id));else pageIds.forEach(id=>wbSel.delete(id));
+    $$('.wb-ck').forEach(cb=>cb.checked=wbSel.has(cb.dataset.id));
+    syncSelUI();
+  };
+  const clr=$('#wbBatchClear');if(clr)clr.onclick=()=>{wbSel.clear();$$('.wb-ck').forEach(cb=>cb.checked=false);syncSelUI();};
+  const brm=$('#wbBatchRm');if(brm)brm.onclick=()=>{
+    const ids=[...wbSel];
+    if(!ids.length)return;
+    confirmBox('批量移除错题',`确认从错题本移除选中的 <strong>${ids.length}</strong> 条记录？移除后不可恢复。`,()=>{
+      const set=new Set(ids);
+      DB.wrongBook=DB.wrongBook.filter(x=>!(set.has(x.id)&&x.userId===u.id));
+      wbSel.clear();saveDB();toast(`已移除 ${ids.length} 条错题记录`,'ok');dispatch();
+    },'移除',true);
+  };
+  syncSelUI();
 });
