@@ -18,11 +18,14 @@ route('#/banks',()=>{
       const n=bankQuestions(b.id).length;
       const lastA=DB.answers.filter(a=>a.userId===u.id&&a.bankId===b.id).pop();
       const sh=DB.shares.filter(s=>s.bankId===b.id&&s.status==='active').length;
+      const pp=progressFor(b.id,'practice'),rp=progressFor(b.id,'recite');
       return `<div class="bank-card">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><h4>${esc(b.name)}</h4>${srcTag(b.source)}</div>
         <div class="meta"><span class="tag gray">${n} 题</span>${sh?`<span class="tag green">已分享 ${sh}</span>`:''}<span class="tag gray">更新 ${fmtTime(b.updatedAt).slice(0,10)}</span></div>
         ${lastA?`<div class="small muted">最近练习：${fmtTime(lastA.ts)}</div>`:'<div class="small muted">尚未练习</div>'}
         <div class="btn-row"><button class="btn primary sm" data-act="practice" data-id="${b.id}" ${n?'':'disabled'}>开始练习</button>
+        ${pp?`<button class="btn sm" data-resume-p="${b.id}">继续刷题 ${pp.idx+1}/${pp.qids.length}</button>`:''}
+        ${rp?`<button class="btn sm" data-resume-r="${b.id}">继续背题 ${rp.idx+1}/${rp.qids.length}</button>`:''}
         <button class="btn sm" data-act="detail" data-id="${b.id}">详情</button></div>
       </div>`;}).join('');
     body=`<div class="btn-row" style="margin-bottom:14px">
@@ -90,6 +93,8 @@ route('#/banks',()=>{
     }
     if(act==='copyBuiltin')copyBuiltin(id);
   });
+  $$('[data-resume-p]').forEach(b=>b.onclick=()=>{const p=loadPS('practice');if(!p)return;PS=p;location.hash='#/practice/run';});
+  $$('[data-resume-r]').forEach(b=>b.onclick=()=>{const p=loadPS('recite');if(!p)return;PS=p;location.hash='#/practice/run';});
 });
 function newBankDialog(){
   openModal(`<h3>新建空题库</h3>
@@ -134,8 +139,10 @@ route('#/bank/:id',id=>{
   const allQ=bankQuestions(id);
   const chaps=bankChapters(id);
   const owner=DB.users.find(x=>x.id===b.ownerId);
+  const pProg=progressFor(id,'practice'),rProg=progressFor(id,'recite');
   const rows=pageQs.map(q=>`<tr>
-    <td style="max-width:380px"><a data-locate="${q.id}" style="color:var(--ink)">${esc(q.stem.slice(0,60))}${q.stem.length>60?'…':''}</a></td>
+    <td style="max-width:380px"><a data-locate="${q.id}" style="color:var(--ink)">${esc(q.stem.slice(0,60))}${q.stem.length>60?'…':''}</a>
+      <button class="btn ghost sm" data-favq="${q.id}" title="收藏/取消收藏">${isFav(q.id)?'★':'☆'}</button></td>
     <td>${typeTag(q.type)}</td>
     <td class="small">${esc((q.chapter||'未设置章节').split('/').pop())}</td>
     <td>${diffTag(q.difficulty)}</td>
@@ -157,6 +164,8 @@ route('#/bank/:id',id=>{
       </div>
       <div class="btn-row" style="margin-top:14px">
         <button class="btn primary" id="bkPractice" ${allQ.length?'':'disabled'}>开始练习</button>
+        ${pProg?`<button class="btn" id="bkResumeP">继续刷题（${pProg.idx+1}/${pProg.qids.length}）</button>`:''}
+        ${rProg?`<button class="btn" id="bkResumeR">继续背题（${rProg.idx+1}/${rProg.qids.length}）</button>`:''}
         <button class="btn" id="bkExam" ${allQ.length?'':'disabled'}>模拟考试</button>
         ${own?`<button class="btn" id="bkShare" ${DB.settings.shareEnabled?'':'disabled'}>分享</button>
         <button class="btn" id="bkEdit">编辑信息</button>
@@ -178,6 +187,12 @@ route('#/bank/:id',id=>{
     </div>`,'#/banks');
   $('#bkPractice').onclick=()=>location.hash='#/practice/setup/'+id;
   $('#bkExam').onclick=()=>location.hash='#/exam/setup?bank='+id;
+  const rp=$('#bkResumeP');if(rp)rp.onclick=()=>{const p=loadPS('practice');if(!p)return;PS=p;location.hash='#/practice/run';};
+  const rr=$('#bkResumeR');if(rr)rr.onclick=()=>{const p=loadPS('recite');if(!p)return;PS=p;location.hash='#/practice/run';};
+  $$('[data-favq]').forEach(x=>x.onclick=()=>{
+    const q=questionById(x.dataset.favq);if(!q)return;
+    const on=toggleFav(q);toast(on?'已收藏':'已取消收藏','ok');dispatch();
+  });
   if(own){
     $('#bkEdit').onclick=()=>{
       openModal(`<h3>编辑题库信息</h3>

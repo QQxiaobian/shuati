@@ -17,13 +17,13 @@ function hashPwd(s){ // cyrb53 不可逆哈希 + 盐（纯前端演示级）
 /* ================= 数据层（服务器同步 + 本地缓存） ================= */
 let DB=null;
 let BASE=null; // 上次与服务器一致时的行哈希基线 {table:{id:hash}, settings/builtin*:hash}
-const SYNC_TABLES=['banks','questions','answers','wrongBook','papers','examRecords','shares','importTasks','auditLogs','users'];
+const SYNC_TABLES=['banks','questions','answers','wrongBook','papers','examRecords','shares','paperShares','favorites','importTasks','auditLogs','users'];
 const SYNC_META=['settings','builtinCategories','builtinBanks'];
 
 function emptyDB(settings){
   return {settings:settings||{openRegister:true,quotaMB:1024,maxFileMB:35,maxSheets:30,maxRows:10000,maxPerImport:20000,shareEnabled:true,wrongThreshold:2},
     users:[],banks:[],questions:[],answers:[],wrongBook:[],papers:[],examRecords:[],
-    shares:[],importTasks:[],auditLogs:[],practiceSessions:{},builtinCategories:[],builtinBanks:[],session:null};
+    shares:[],paperShares:[],favorites:[],importTasks:[],auditLogs:[],practiceSessions:{},builtinCategories:[],builtinBanks:[],session:null};
 }
 async function api(path,opts){
   let r;
@@ -261,6 +261,24 @@ function refreshWrongValidity(){ // 题目删除/分享撤销后标记失效
   });
   saveDB();
 }
+/* ================= 收藏 ================= */
+function isFav(qid){const u=currentUser();return !!(u&&DB.favorites.some(f=>f.userId===u.id&&f.questionId===qid));}
+function toggleFav(q){ // 返回切换后的收藏状态
+  const u=currentUser();if(!u||!q)return false;
+  const ex=DB.favorites.find(f=>f.userId===u.id&&f.questionId===q.id);
+  if(ex){DB.favorites=DB.favorites.filter(f=>f.id!==ex.id);saveDB();return false;}
+  DB.favorites.push({id:uid(),userId:u.id,questionId:q.id,bankId:q.bankId,createdAt:nowTs()});
+  saveDB();return true;
+}
+function myFavorites(){
+  const u=currentUser();if(!u)return [];
+  return DB.favorites.filter(f=>f.userId===u.id).sort((a,b)=>b.createdAt-a.createdAt);
+}
+/* ================= 试卷 ================= */
+function paperById(id){return DB.papers.find(p=>p.id===id);}
+function myPapers(){const u=currentUser();return DB.papers.filter(p=>u&&p.userId===u.id);}
+function sharedPapers(){const u=currentUser();return DB.papers.filter(p=>u&&p.userId!==u.id);}
+function paperShareFor(paper,userId){return DB.paperShares.find(s=>s.paperId===paper.id&&s.status==='active'&&s.targetUserId===userId);}
 /* ================= UI 组件 ================= */
 function toast(msg,type){
   const box=$('#toastBox');const el=document.createElement('div');
@@ -301,8 +319,9 @@ function srcTag(s){return {manual:'<span class="tag gray">手动</span>',import:
 const NAV=[
   {h:'#/banks',t:'题库',i:'📚'},
   {h:'#/wrongbook',t:'错题本',i:'✏️'},
-  {h:'#/exam/setup',t:'模拟考试',i:'📝'},
+  {h:'#/papers',t:'模拟考试',i:'📝'},
   {h:'#/exams',t:'考试记录',i:'🗂️'},
+  {h:'#/favorites',t:'收藏',i:'⭐'},
   {h:'#/search',t:'搜题',i:'🔍'},
 ];
 function layout(content,active){

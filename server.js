@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS wrongbook (id TEXT PRIMARY KEY, user_id TEXT, questio
 CREATE TABLE IF NOT EXISTS papers (id TEXT PRIMARY KEY, user_id TEXT, data TEXT);
 CREATE TABLE IF NOT EXISTS exam_records (id TEXT PRIMARY KEY, user_id TEXT, paper_id TEXT, status TEXT, data TEXT);
 CREATE TABLE IF NOT EXISTS shares (id TEXT PRIMARY KEY, bank_id TEXT, owner_id TEXT, target_user_id TEXT, link_token TEXT, status TEXT, data TEXT);
+CREATE TABLE IF NOT EXISTS paper_shares (id TEXT PRIMARY KEY, paper_id TEXT, owner_id TEXT, target_user_id TEXT, link_token TEXT, status TEXT, data TEXT);
+CREATE TABLE IF NOT EXISTS favorites (id TEXT PRIMARY KEY, user_id TEXT, question_id TEXT, data TEXT);
 CREATE TABLE IF NOT EXISTS import_tasks (id TEXT PRIMARY KEY, user_id TEXT, data TEXT);
 CREATE TABLE IF NOT EXISTS audit_logs (id TEXT PRIMARY KEY, ts INTEGER, data TEXT);
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, data TEXT);
@@ -63,11 +65,14 @@ CREATE INDEX IF NOT EXISTS idx_wrongbook_user ON wrongbook(user_id);
 CREATE INDEX IF NOT EXISTS idx_papers_user ON papers(user_id);
 CREATE INDEX IF NOT EXISTS idx_exam_records_user ON exam_records(user_id);
 CREATE INDEX IF NOT EXISTS idx_shares_bank ON shares(bank_id);
+CREATE INDEX IF NOT EXISTS idx_paper_shares_paper ON paper_shares(paper_id);
+CREATE INDEX IF NOT EXISTS idx_paper_shares_target ON paper_shares(target_user_id);
+CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);
 CREATE INDEX IF NOT EXISTS idx_import_tasks_user ON import_tasks(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 `);
 
-const TABLES = new Set(['users', 'banks', 'questions', 'answers', 'wrongbook', 'papers', 'exam_records', 'shares', 'import_tasks', 'audit_logs']);
+const TABLES = new Set(['users', 'banks', 'questions', 'answers', 'wrongbook', 'papers', 'exam_records', 'shares', 'paper_shares', 'favorites', 'import_tasks', 'audit_logs']);
 
 function getRow(t, id) {
   const r = db.prepare(`SELECT data FROM ${t} WHERE id=?`).get(id);
@@ -158,18 +163,42 @@ function buildDb(u) {
   const mine = t => db.prepare(`SELECT data FROM ${t} WHERE user_id=?`).all(uid).map(r => JSON.parse(r.data));
   const answers = mine('answers');
   const wrongBook = mine('wrongbook');
-  const papers = mine('papers');
-  const examRecords = mine('exam_records');
   const importTasks = mine('import_tasks');
+  const favorites = mine('favorites');
 
+  // 试卷：自己的 + 别人共享给我的（仅状态为 active）
+  const myPapers = mine('papers');
+  const paperSharesAll = allRows('paper_shares');
+  const paperShares = paperSharesAll.filter(s => adm || (s.ownerId || '') === uid || (s.targetUserId || '') === uid);
+  const papers = [...myPapers];
+  for (const s of paperShares) {
+    if ((s.targetUserId || '') !== uid || (s.status || '') !== 'active') continue;
+    if (papers.some(p => p.id === s.paperId)) continue;
+    const p = getRow('papers', s.paperId || '');
+    if (p) papers.push(p);
+  }
+  const myPaperIds = new Set(myPapers.map(p => p.id));
+
+  // 考试记录：自己的 + 自己试卷下所有人的（试卷所有者可查看每个人成绩）
+  const allRecords = allRows('exam_records');
+  const examRecords = allRecords.filter(r => (r.userId || '') === uid || myPaperIds.has(r.paperId || ''));
   for (const rr of examRecords) {
     if (!rr.answers || typeof rr.answers !== 'object' || Array.isArray(rr.answers)) rr.answers = {};
   }
 
-  const ongoingPids = new Set();
-  for (const r of examRecords) if ((r.status || '') === 'ongoing') ongoingPids.add(r.paperId);
+  // 进行中的试卷不下发答案；共享试卷在本人交卷前也不下发答案
+  const ongoingMine = new Set();
+  const submittedMine = new Set();
+  for (const r of examRecords) {
+    if ((r.userId || '') !== uid) continue;
+    if ((r.status || '') === 'ongoing') ongoingMine.add(r.paperId);
+    else submittedMine.add(r.paperId);
+  }
   for (const pp of papers) {
-    if (ongoingPids.has(pp.id) && Array.isArray(pp.questions)) {
+    if (!Array.isArray(pp.questions)) continue;
+    const owned = (pp.userId || '') === uid;
+    const hide = owned ? ongoingMine.has(pp.id) : !submittedMine.has(pp.id);
+    if (hide) {
       for (const qq of pp.questions) { delete qq.answer; delete qq.analysis; }
     }
   }
@@ -180,7 +209,8 @@ function buildDb(u) {
     settings: metaGet('settings', {}),
     builtinCategories: metaGet('builtinCategories', []),
     builtinBanks: metaGet('builtinBanks', []),
-    users, banks, questions, answers, wrongBook, papers, examRecords, shares, importTasks,
+    users, banks, questions, answers, wrongBook, papers, examRecords, shares, paperShares,
+    favorites, importTasks,
     auditLogs: adm ? allRows('audit_logs') : [],
     practiceSessions: {},
   };
@@ -245,6 +275,8 @@ function applyChanges(u, ups, del) {
 
     const bankOwner = {};
     for (const r of db.prepare('SELECT id,owner_id FROM banks').all()) bankOwner[r.id] = r.owner_id;
+    const paperOwner = {};
+    for (const r of db.prepare('SELECT id,user_id FROM papers').all()) paperOwner[r.id] = r.user_id;
 
     if (Array.isArray(U.banks)) {
       for (const b of U.banks) {
@@ -271,7 +303,7 @@ function applyChanges(u, ups, del) {
       }
     }
 
-    const personal = [['answers', 'answers'], ['wrongBook', 'wrongbook'], ['importTasks', 'import_tasks']];
+    const personal = [['answers', 'answers'], ['wrongBook', 'wrongbook'], ['favorites', 'favorites'], ['importTasks', 'import_tasks']];
     for (const [key, table] of personal) {
       if (Array.isArray(U[key])) {
         for (const row of U[key]) {
@@ -345,6 +377,36 @@ function applyChanges(u, ups, del) {
       }
     }
 
+    if (Array.isArray(U.paperShares)) {
+      const allPaperShares = allRows('paper_shares');
+      for (const s of U.paperShares) {
+        if (!s || !s.id) continue;
+        const ex = getRow('paper_shares', s.id);
+        let ownerId = paperOwner[s.paperId || ''];
+        if (ownerId === undefined && s.paperId) {
+          const pp = getRow('papers', s.paperId);
+          ownerId = pp ? (pp.userId ?? null) : null;
+        }
+        let ok = false;
+        if (adm) ok = true;
+        else if (ownerId === uid) { s.ownerId = uid; ok = true; }
+        else if ((s.targetUserId || '') === uid) {
+          if (ex && (ex.targetUserId || '') === uid) ok = true;
+          else if (!ex && s.viaLink) {
+            for (const ls of allPaperShares) {
+              if ((ls.linkToken || '') === s.viaLink && (ls.paperId || '') === (s.paperId || '') && (ls.status || '') === 'active') { ok = true; break; }
+            }
+          }
+        }
+        if (!ok) continue;
+        if (!s.ownerId) s.ownerId = ownerId || '';
+        putRow('paper_shares', s.id, {
+          paper_id: s.paperId || '', owner_id: s.ownerId || '', target_user_id: s.targetUserId || '',
+          link_token: s.linkToken || '', status: s.status || 'active',
+        }, s);
+      }
+    }
+
     if (Array.isArray(D.banks)) {
       for (const id of D.banks) {
         if (typeof id !== 'string') continue;
@@ -376,10 +438,20 @@ function applyChanges(u, ups, del) {
         delRow('shares', id);
       }
     }
+    if (Array.isArray(D.paperShares)) {
+      for (const id of D.paperShares) {
+        if (typeof id !== 'string') continue;
+        const s = getRow('paper_shares', id);
+        if (!s) continue;
+        if ((s.ownerId || '') !== uid && !adm) continue;
+        delRow('paper_shares', id);
+      }
+    }
     if (Array.isArray(D.papers)) {
       for (const id of D.papers) {
         if (typeof id !== 'string') continue;
         db.prepare('DELETE FROM papers WHERE id=? AND user_id=?').run(id, uid);
+        db.prepare('DELETE FROM paper_shares WHERE paper_id=?').run(id);
       }
     }
 
@@ -604,6 +676,35 @@ async function handleExamCreate(req, res) {
   const uid = u.id;
   const j = await readJson(req);
 
+  /* 按已有试卷模板直接开考：不重新抽题，复用试卷快照，记录归属当前用户 */
+  const tplId = String(j.paperId ?? '').trim();
+  if (tplId) {
+    const tpl = getRow('papers', tplId);
+    if (!tpl) return jfail(res, '试卷不存在或已删除');
+    let allowed = isAdm(u) || (tpl.userId || '') === uid;
+    if (!allowed) {
+      allowed = allRows('paper_shares').some(s =>
+        (s.paperId || '') === tplId && (s.targetUserId || '') === uid && (s.status || '') === 'active');
+    }
+    if (!allowed) return jfail(res, '无权使用该试卷');
+    const duration = Math.max(1, Math.min(300, toInt(j.duration, (tpl.config && tpl.config.duration) || 90)));
+    const now = ms();
+    const ongoing = allRows('exam_records').find(r =>
+      (r.userId || '') === uid && (r.paperId || '') === tplId &&
+      (r.status || '') === 'ongoing' && Number(r.deadline || 0) > now - 30000);
+    let rec = ongoing;
+    if (!rec) {
+      rec = {
+        id: genId(), paperId: tpl.id, userId: uid, answers: {},
+        startedAt: now, deadline: now + duration * 60000, status: 'ongoing', score: null, submittedAt: null,
+      };
+      putRow('exam_records', rec.id, { user_id: uid, paper_id: tpl.id, status: 'ongoing' }, rec);
+    }
+    const paperOut = JSON.parse(JSON.stringify(tpl));
+    for (const qq of (paperOut.questions || [])) { delete qq.answer; delete qq.analysis; }
+    return json(res, 200, { ok: true, paper: paperOut, record: rec, reused: !!ongoing });
+  }
+
   const d = new Date();
   const name = String(j.name ?? '').trim() || `模拟试卷 ${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
   const bankIds = Array.isArray(j.banks) ? j.banks.filter(x => typeof x === 'string') : [];
@@ -690,17 +791,8 @@ async function handleExamCreate(req, res) {
     questions: snap, total: snap.length, totalScore,
     passScore: Math.round(totalScore * passPct / 100), createdAt: now,
   };
-  const rec = {
-    id: genId(), paperId: paper.id, userId: uid, answers: {},
-    startedAt: now, deadline: now + duration * 60000, status: 'ongoing', score: null, submittedAt: null,
-  };
-
   putRow('papers', paper.id, { user_id: uid }, paper);
-  putRow('exam_records', rec.id, { user_id: uid, paper_id: paper.id, status: 'ongoing' }, rec);
-
-  const paperOut = JSON.parse(JSON.stringify(paper));
-  for (const qq of paperOut.questions) { delete qq.answer; delete qq.analysis; }
-  return json(res, 200, { ok: true, paper: paperOut, record: rec });
+  return json(res, 200, { ok: true, paper });
 }
 
 async function handleExamSubmit(req, res) {

@@ -3,9 +3,18 @@
 let PS=null; // {mode,bankId,filters,qids,idx,answers:{qid:{content,correct}},startTs}
 const PKEY='shutibao_practice';
 const RECITE_ONLY_KEY='shutibao_recite_only';
-function savePS(){if(PS)localStorage.setItem(PKEY+'_'+currentUser().id,JSON.stringify(PS));}
-function loadPS(){try{return JSON.parse(localStorage.getItem(PKEY+'_'+currentUser().id));}catch(e){return null;}}
-function clearPS(){localStorage.removeItem(PKEY+'_'+currentUser().id);}
+function psMode(m){return m==='recite'?'recite':(m==='one'?'one':'practice');}
+function psKey(m){return PKEY+'_'+currentUser().id+'_'+psMode(m);}
+function savePS(){if(!PS||!currentUser())return;localStorage.setItem(psKey(PS.mode),JSON.stringify(PS));}
+function loadPS(m){try{return JSON.parse(localStorage.getItem(psKey(m)));}catch(e){return null;}}
+function clearPS(m){if(!currentUser())return;localStorage.removeItem(psKey(m||(PS?PS.mode:'practice')));}
+/* 题库维度的续练进度：刷题/背题各自独立 */
+function progressFor(bankId,mode){
+  const p=loadPS(mode);
+  if(!p||!Array.isArray(p.qids)||!p.qids.length)return null;
+  if(bankId&&p.bankId!==bankId)return null;
+  return p;
+}
 /* ---- 生成每题的选项乱序映射（不改动原题 answer/options，只保存展示顺序） ----
    single/multi: qid -> [原始 options 下标数组]，展示位置 i 对应 q.options[arr[i]]，展示字母为 'A'+i
    judge: qid -> ['正确','错误'] 或反序
@@ -60,16 +69,21 @@ route('#/practice/setup/:bankId',bankId=>{
   const b=bankById(bankId);
   if(!b||!canReadBank(b)){toast('题库不存在或分享已失效','err');location.hash='#/banks';return;}
   const u=currentUser();
-  const old=loadPS();
-  if(old&&old.mode==='recite')clearPS(); // 背题模式不续练
-  else if(old&&old.bankId===bankId&&old.qids.length&&Object.keys(old.answers).length<old.qids.length){
-    confirmBox('继续上次练习？',`上次练习进行到第 ${old.idx+1} / ${old.qids.length} 题。`,()=>{PS=old;location.hash='#/practice/run';},'继续练习');
-    render(`<div class="card empty"><div class="big">▶️</div><p>检测到未完成的练习</p><div class="btn-row" style="justify-content:center"><button class="btn" onclick="clearPS();dispatch()">放弃，重新设置</button></div></div>`,'#/banks');
-    return;
-  }
+  const pProg=progressFor(bankId,'practice');
+  const rProg=progressFor(bankId,'recite');
   const f={type:'全部',result:'全部',judge:'不限',chap:'全部',diff:'全部'};
+  const resumeHTML=(pProg||rProg)?`<div class="card" style="margin-bottom:14px">
+      <h4 style="margin-bottom:8px">继续上次进度</h4>
+      ${pProg?`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)">
+        <span class="small">刷题：第 <strong>${pProg.idx+1}</strong> / ${pProg.qids.length} 题 · 已答 ${Object.keys(pProg.answers||{}).length} 题</span>
+        <button class="btn sm primary" data-resume="practice">继续刷题</button></div>`:''}
+      ${rProg?`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0">
+        <span class="small">背题：第 <strong>${rProg.idx+1}</strong> / ${rProg.qids.length} 题</span>
+        <button class="btn sm" data-resume="recite">继续背题</button></div>`:''}
+    </div>`:'';
   render(`<div class="btn-row" style="margin-bottom:12px"><button class="btn ghost" onclick="location.hash='#/bank/${bankId}'">← 返回题库</button></div>
     <h1 class="page-title">开始练习</h1><div class="page-sub">${esc(b.name)} · 共 ${bankQuestions(bankId).length} 题</div>
+    ${resumeHTML}
     <div class="card">
       <h4 style="margin-bottom:10px">练习方式</h4>
       <div class="check-row" id="modeRow">
@@ -78,7 +92,7 @@ route('#/practice/setup/:bankId',bankId=>{
         <label><input type="radio" name="pmode" value="special"> 专项练习</label>
         <label><input type="radio" name="pmode" value="recite"> 背题模式</label>
       </div>
-      <div class="hint" style="margin-top:6px">背题模式：直接展示答案与解析，不判分、不记录答题历史</div>
+      <div class="hint" style="margin-top:6px">进入练习后也可随时在顶部切换「刷题 / 背题」；两种模式分别记录进度</div>
       <div style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">
         <label class="small" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="autoNext"> 答对自动进入下一题</label>
         <label class="small" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="shuffleOpts"> 选项乱序</label>
@@ -92,6 +106,10 @@ route('#/practice/setup/:bankId',bankId=>{
         <button class="btn primary lg" id="startP" disabled>开始练习</button>
       </div>
     </div>`,'#/banks');
+  $$('[data-resume]').forEach(btn=>btn.onclick=()=>{
+    const p=loadPS(btn.dataset.resume);if(!p)return;
+    PS=p;location.hash='#/practice/run';
+  });
   const update=()=>{
     const ff=readFilters();
     $('#fJudge').disabled=ff.type!=='judge'&&ff.type!=='全部';
@@ -158,10 +176,39 @@ route('#/practice/one/:qid',qid=>{
   PS={mode:'one',bankId:q.bankId,filters:{},qids:[qid],idx:0,answers:{},startTs:nowTs()};
   location.hash='#/practice/run';
 });
+/* ---- 收藏夹 ---- */
+route('#/favorites',()=>{
+  if(!requireAuth())return;
+  const favs=myFavorites().filter(f=>{
+    const q=questionById(f.questionId);const b=q&&bankById(q.bankId);
+    return q&&b&&canReadBank(b);
+  });
+  const rows=favs.map(f=>{
+    const q=questionById(f.questionId);const b=bankById(q.bankId);
+    const own=isOwner(b);
+    return `<div class="card" style="margin-bottom:10px">
+      <div class="meta" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${typeTag(q.type)}${diffTag(q.difficulty)}<span class="tag gray">${esc(q.chapter||'未设置章节')}</span><span class="tag ${own?'':'accent'}">${own?'自有':'共享'} · ${esc(b.name)}</span><span class="tag gray">收藏于 ${fmtTime(f.createdAt)}</span></div>
+      <div style="font-weight:600">${esc(q.stem.slice(0,120))}${q.stem.length>120?'…':''}</div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn sm primary" data-one="${q.id}">练这题</button>
+        <button class="btn sm ghost" data-locbank="${b.id}">定位题库</button>
+        <button class="btn sm ghost" data-unfav="${q.id}">★ 取消收藏</button>
+      </div>
+    </div>`;
+  }).join('');
+  render(`<h1 class="page-title">收藏题目</h1><div class="page-sub">共 ${favs.length} 题 · 按收藏时间倒序</div>
+    ${favs.length?rows:`<div class="card empty"><div class="big">⭐</div><p>还没有收藏题目，可在刷题、背题、搜题、题库详情中点击「☆ 收藏」</p></div>`}`,'#/favorites');
+  $$('[data-one]').forEach(b=>b.onclick=()=>location.hash='#/practice/one/'+b.dataset.one);
+  $$('[data-locbank]').forEach(b=>b.onclick=()=>location.hash='#/bank/'+b.dataset.locbank);
+  $$('[data-unfav]').forEach(b=>b.onclick=()=>{
+    const q=questionById(b.dataset.unfav);if(!q)return;
+    toggleFav(q);toast('已取消收藏','ok');dispatch();
+  });
+});
 /* ---- 练习运行 ---- */
 route('#/practice/run',()=>{
   if(!requireAuth())return;
-  if(!PS)PS=loadPS();
+  if(!PS)PS=loadPS('practice');
   if(!PS||!PS.qids.length){toast('没有进行中的练习','warn');location.hash='#/banks';return;}
   const qid=PS.qids[PS.idx];const q=questionById(qid);
   if(!q||!canReadBank(bankById(q.bankId))){
@@ -172,9 +219,13 @@ route('#/practice/run',()=>{
   const bank=bankById(q.bankId);
   if(PS.mode==='recite'){renderRecite(q,bank);return;}
   const correctAnswerText=q=>q.type==='judge'?q.answer:q.type==='blank'?splitAccepted(q.answer).join(' / '):q.answer;
-  render(`<div class="btn-row" style="margin-bottom:10px;justify-content:space-between">
+  render(`<div class="btn-row" style="margin-bottom:10px;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <button class="btn ghost" id="pExit">← 退出练习</button>
-      <span class="small muted">${esc(bank?bank.name:'')}${PS.shuffleOpts?' · 选项乱序':''}</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <button class="btn sm" id="pModeToggle">切换到背题模式</button>
+        <button class="btn sm ghost" id="pFav">${isFav(qid)?'★ 已收藏':'☆ 收藏'}</button>
+        <span class="small muted">${esc(bank?bank.name:'')}${PS.shuffleOpts?' · 选项乱序':''}</span>
+      </div>
     </div>
     <div class="progress-line"><i style="width:${(PS.idx)/PS.qids.length*100}%"></i></div>
     <div class="small muted" style="margin-bottom:10px">第 ${PS.idx+1} / ${PS.qids.length} 题 · 已答 ${Object.keys(PS.answers).length}</div>
@@ -227,6 +278,7 @@ route('#/practice/run',()=>{
             else{sel=[...sel+origK].sort().join('');selDisp=[...selDisp+dispK].sort().join('');}
           }
           renderOpts();
+          if(q.type==='single')setTimeout(doSubmit,0); // 单选：点选后自动确认
         });
       }
     };
@@ -240,7 +292,7 @@ route('#/practice/run',()=>{
         else if(sel===v)cls+=' sel';
         return `<div class="${cls}" data-v="${v}"><span class="k">${v==='正确'?'✓':'✗'}</span><span>${v}</span></div>`;
       }).join('');
-      if(!answered)$$('#ansArea .opt').forEach(el=>el.onclick=()=>{sel=el.dataset.v;renderJ();});
+      if(!answered)$$('#ansArea .opt').forEach(el=>el.onclick=()=>{sel=el.dataset.v;renderJ();setTimeout(doSubmit,0);}); // 判断：点选后自动确认
     };
     renderJ();
   }else{
@@ -273,7 +325,7 @@ route('#/practice/run',()=>{
   const skip=$('#pSkip');if(skip)skip.onclick=()=>{ // 跳过=未做
     if(PS.idx<PS.qids.length-1){PS.idx++;savePS();dispatch();}else finishPractice();
   };
-  const sub=$('#pSubmit');if(sub)sub.onclick=()=>{
+  function doSubmit(){
     let content=sel;
     if(q.type==='blank'||q.type==='essay')content=$('#ansText').value;
     if(!content||!String(content).trim())return toast('请先作答','warn');
@@ -298,11 +350,25 @@ route('#/practice/run',()=>{
     }
     // 锁定并重绘
     dispatch();
-  };
+  }
+  const sub=$('#pSubmit');if(sub)sub.onclick=doSubmit;
   const nx=$('#pNext');if(nx)nx.onclick=()=>{
     if(PS.idx<PS.qids.length-1){PS.idx++;savePS();dispatch();}else finishPractice();
   };
+  const mt=$('#pModeToggle');if(mt)mt.onclick=switchPracticeMode;
+  const fav=$('#pFav');if(fav)fav.onclick=()=>{const on=toggleFav(q);toast(on?'已收藏':'已取消收藏','ok');dispatch();};
 });
+/* ---- 刷题 / 背题模式切换（同一会话保留题序与进度，分别存储） ---- */
+function switchPracticeMode(){
+  if(!PS)return;
+  savePS();
+  if(PS.mode!=='recite')PS.retMode=PS.mode;
+  PS.mode=PS.mode==='recite'?(PS.retMode||'seq'):'recite';
+  if(!PS.answers)PS.answers={};
+  savePS();
+  toast(PS.mode==='recite'?'已切换到背题模式':'已切换到刷题模式','ok');
+  dispatch();
+}
 /* ---- 背题模式：直接展示答案与解析，不判分、不记录 ---- */
 function renderRecite(q,bank){
   const bid=PS.bankId;
@@ -315,7 +381,9 @@ function renderRecite(q,bank){
     : '';
   render(`<div class="btn-row" style="margin-bottom:10px;justify-content:space-between;gap:10px">
       <button class="btn ghost" id="pExit">← 退出背题</button>
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="btn sm" id="pModeToggle">切换到刷题模式</button>
+        <button class="btn sm ghost" id="pFav">${isFav(q.id)?'★ 已收藏':'☆ 收藏'}</button>
         <label class="switch"><input type="checkbox" id="reciteOnlyToggle" ${onlyCorrect?'checked':''}><span class="track"></span><span>仅显示正确选项</span></label>
         <span class="small muted">${esc(bank?bank.name:'')} · 背题模式</span>
       </div>
@@ -334,7 +402,9 @@ function renderRecite(q,bank){
         <button class="btn primary" id="pNext">${last?'完成背题':'下一题'}</button>
       </div>
     </div>`,backHash);
-  $('#pExit').onclick=()=>{clearPS();PS=null;location.hash=backHash;};
+  $('#pExit').onclick=()=>{savePS();PS=null;location.hash=backHash;};
+  const mt=$('#pModeToggle');if(mt)mt.onclick=switchPracticeMode;
+  const fav=$('#pFav');if(fav)fav.onclick=()=>{const on=toggleFav(q);toast(on?'已收藏':'已取消收藏','ok');dispatch();};
   $('#reciteOnlyToggle').onchange=e=>{localStorage.setItem(RECITE_ONLY_KEY,e.target.checked?'1':'0');dispatch();};
   $('#pPrev').onclick=()=>{if(PS.idx>0){PS.idx--;savePS();dispatch();}};
   $('#pNext').onclick=()=>{
