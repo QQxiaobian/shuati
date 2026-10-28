@@ -288,11 +288,9 @@ route('#/practice/run',()=>{
       <div class="meta" style="display:flex;gap:6px;flex-wrap:wrap">${typeTag(q.type)}${diffTag(q.difficulty)}<span class="tag gray">${esc(q.chapter||'未设置章节')}</span></div>
       <div class="q-stem">${esc(q.stem)}</div>
       <div id="ansArea"></div>
+      ${answered?`<div class="btn-row" style="margin-top:12px"><span style="flex:1"></span><button class="btn primary" id="pNext">${PS.idx<PS.qids.length-1?'下一题':'完成练习'}</button></div>`:''}
       <div id="fbArea"></div>
-      <div class="btn-row" style="margin-top:16px">
-        ${answered?'':`<button class="btn" id="pSkip">跳过</button><button class="btn primary" id="pSubmit">提交</button>`}
-        ${answered?`<button class="btn primary" id="pNext">${PS.idx<PS.qids.length-1?'下一题':'完成练习'}</button>`:''}
-      </div>
+      ${answered?'':`<div class="btn-row" style="margin-top:16px"><button class="btn" id="pSkip">跳过</button><span style="flex:1"></span><button class="btn primary" id="pSubmit">提交</button></div>`}
     </div>
     ${PS.qids.length>1?`<div class="card" style="margin-top:14px">
       <div class="small muted" style="margin-bottom:8px">答题卡 <span class="muted">（点击题号可跳转）</span></div>
