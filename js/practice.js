@@ -294,7 +294,8 @@ route('#/practice/run',()=>{
     </div>
     ${PS.qids.length>1?`<div class="card" style="margin-top:14px">
       <div class="small muted" style="margin-bottom:8px">答题卡 <span class="muted">（点击题号可跳转）</span></div>
-      <div class="exam-nav">${PS.qids.map((id,i)=>`<button class="${PS.answers[id]?'done':''} ${PS.idx===i?'cur':''}" data-jump="${i}">${i+1}</button>`).join('')}</div>
+      <div class="exam-nav">${PS.qids.map((id,i)=>{const a=PS.answers[id];
+        return `<button class="${a?(a.correct===false?'wrong':'done'):''}${PS.idx===i?' cur':''}" data-jump="${i}">${i+1}</button>`;}).join('')}</div>
     </div>`:''}`,backHash);
   // 答题卡跳转
   $$('[data-jump]').forEach(b=>b.onclick=()=>{PS.idx=+b.dataset.jump;savePS();dispatch();});
