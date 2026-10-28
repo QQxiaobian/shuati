@@ -748,15 +748,29 @@ function drawQuestions(cfg, uid, u, opts) {
   }
   if (gaps.length) return { ok: false, error: '题量不足', gaps };
 
+  const shuffleOpts = !!cfg.shuffleOpts;
   const snap = [];
   let no = 1;
   for (const x of picked) {
     const q = x.q;
+    let options = (Array.isArray(q.options) ? q.options : []).map(o => ({ k: o.k ?? '', t: o.t ?? '' }));
+    let answer = q.answer ?? '';
+    /* 选项乱序：打乱单选/多选选项顺序并重排字母，答案同步改为新字母 */
+    if (shuffleOpts && (q.type === 'single' || q.type === 'multi') && options.length > 1) {
+      const order = shuffle([...options.keys()]);
+      let newAnswer = '';
+      options = order.map((origIdx, pos) => {
+        const letter = pos < 26 ? String.fromCharCode(65 + pos) : String(pos + 1);
+        if (String(answer).includes(options[origIdx].k)) newAnswer += letter;
+        return { k: letter, t: options[origIdx].t };
+      });
+      answer = newAnswer;
+    }
     snap.push({
       qid: q.id, bankId: q.bankId, no: no++, type: q.type,
       stem: q.stem ?? '',
-      options: (Array.isArray(q.options) ? q.options : []).map(o => ({ k: o.k ?? '', t: o.t ?? '' })),
-      answer: q.answer ?? '', analysis: q.analysis ?? '',
+      options,
+      answer, analysis: q.analysis ?? '',
       chapter: q.chapter ?? '未设置章节', difficulty: q.difficulty ?? 'none', score: x.score,
     });
   }
@@ -825,7 +839,7 @@ async function handleExamCreate(req, res) {
   const duration = Math.max(1, Math.min(300, toInt(j.duration, 90)));
   const passPct = Math.max(1, Math.min(100, toInt(j.passPct, 60)));
 
-  const drawn = drawQuestions({ banks: j.banks, counts, scores, chaps, diffs }, uid, u);
+  const drawn = drawQuestions({ banks: j.banks, counts, scores, chaps, diffs, shuffleOpts: !!j.shuffleOpts }, uid, u);
   if (!drawn.ok) {
     if (drawn.gaps) return json(res, 200, { ok: false, error: drawn.error, gaps: drawn.gaps });
     return jfail(res, drawn.error);
@@ -835,7 +849,7 @@ async function handleExamCreate(req, res) {
   const now = ms();
   const paper = {
     id: genId(), userId: uid, name,
-    config: { banks: drawn.banks, counts, scores, chaps, diffs, duration, passPct, randomOnRetake: !!j.randomOnRetake },
+    config: { banks: drawn.banks, counts, scores, chaps, diffs, duration, passPct, randomOnRetake: !!j.randomOnRetake, shuffleOpts: !!j.shuffleOpts },
     questions: snap, total: snap.length, totalScore,
     passScore: Math.round(totalScore * passPct / 100), createdAt: now,
   };

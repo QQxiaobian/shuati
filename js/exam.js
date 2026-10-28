@@ -35,6 +35,7 @@ route('#/exam/setup',()=>{
         <div class="field"><label>考试时长（分钟，1–300）</label><input class="input" id="exDur" type="number" min="1" max="300" value="90"></div>
         <div class="field"><label>及格线（总分百分比）</label><input class="input" id="exPass" type="number" min="1" max="100" value="60"></div>
       </div>
+      <div style="margin-top:10px"><label class="switch"><input type="checkbox" id="exShuffle"><span class="track"></span><span>选项乱序（生成时打乱每题的单选/多选选项顺序）</span></label></div>
       <div style="margin-top:10px"><label class="switch"><input type="checkbox" id="exRand"><span class="track"></span><span>开启「重考随机抽题」（再考时按相同配置重新随机抽题）</span></label></div>
       <div id="exGap"></div>
       <div class="modal-foot" style="justify-content:flex-end"><button class="btn primary lg" id="exGen">生成试卷</button></div>
@@ -85,7 +86,7 @@ route('#/exam/setup',()=>{
     $('#exGen').disabled=true;
     try{
       await flushSave();
-      const r=await apiPost('exam/create',{name:EX.name,banks:EX.banks,counts:EX.counts,scores:EX.scores,chaps:selChaps,diffs:selDiffs,duration:EX.duration,passPct:EX.passPct,randomOnRetake:$('#exRand').checked});
+      const r=await apiPost('exam/create',{name:EX.name,banks:EX.banks,counts:EX.counts,scores:EX.scores,chaps:selChaps,diffs:selDiffs,duration:EX.duration,passPct:EX.passPct,randomOnRetake:$('#exRand').checked,shuffleOpts:$('#exShuffle').checked});
       if(!r.ok){
         if(r.gaps){
           $('#exGap').innerHTML=`<div class="feedback bad" style="margin-top:10px"><strong>题量不足，无法生成：</strong>${r.gaps.map(g=>`${TYPES[g.t]} 需求 ${g.want} / 可用 ${g.have} / 缺口 ${g.want-g.have}`).join('；')}。请减少题量或放宽筛选。</div>`;
@@ -323,7 +324,7 @@ route('#/papers',()=>{
     const randOn=!!(p.config&&p.config.randomOnRetake);
     return `<div class="bank-card">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><h4>${esc(p.name)}</h4>${own?'<span class="tag">我创建</span>':`<span class="tag accent">来自 ${esc(owner?owner.nickname||owner.username:'未知')}</span>`}</div>
-      <div class="meta"><span class="tag gray">${p.total} 题</span><span class="tag gray">满分 ${p.totalScore??p.total}</span><span class="tag gray">${(p.config&&p.config.duration)||90} 分钟</span>${randOn?'<span class="tag accent">重考随机抽题</span>':''}${own&&sh?`<span class="tag green">已共享 ${sh}</span>`:''}</div>
+      <div class="meta"><span class="tag gray">${p.total} 题</span><span class="tag gray">满分 ${p.totalScore??p.total}</span><span class="tag gray">${(p.config&&p.config.duration)||90} 分钟</span>${randOn?'<span class="tag accent">重考随机抽题</span>':''}${p.config&&p.config.shuffleOpts?'<span class="tag">选项乱序</span>':''}${own&&sh?`<span class="tag green">已共享 ${sh}</span>`:''}</div>
       <div class="small muted">创建于 ${fmtTime(p.createdAt)} ｜ 我的考试 ${myRecs.length} 次${own?` ｜ 全部记录 ${allRecs.length} 条`:''}</div>
       <div class="btn-row">
         <button class="btn primary sm" data-start="${p.id}">${ongoing?'继续考试':'开始考试'}</button>
