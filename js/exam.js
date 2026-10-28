@@ -35,6 +35,7 @@ route('#/exam/setup',()=>{
         <div class="field"><label>考试时长（分钟，1–300）</label><input class="input" id="exDur" type="number" min="1" max="300" value="90"></div>
         <div class="field"><label>及格线（总分百分比）</label><input class="input" id="exPass" type="number" min="1" max="100" value="60"></div>
       </div>
+      <div style="margin-top:10px"><label class="switch"><input type="checkbox" id="exRand"><span class="track"></span><span>开启「重考随机抽题」（再考时按相同配置重新随机抽题）</span></label></div>
       <div id="exGap"></div>
       <div class="modal-foot" style="justify-content:flex-end"><button class="btn primary lg" id="exGen">生成试卷</button></div>
     </div>`,'#/papers');
@@ -84,7 +85,7 @@ route('#/exam/setup',()=>{
     $('#exGen').disabled=true;
     try{
       await flushSave();
-      const r=await apiPost('exam/create',{name:EX.name,banks:EX.banks,counts:EX.counts,scores:EX.scores,chaps:selChaps,diffs:selDiffs,duration:EX.duration,passPct:EX.passPct});
+      const r=await apiPost('exam/create',{name:EX.name,banks:EX.banks,counts:EX.counts,scores:EX.scores,chaps:selChaps,diffs:selDiffs,duration:EX.duration,passPct:EX.passPct,randomOnRetake:$('#exRand').checked});
       if(!r.ok){
         if(r.gaps){
           $('#exGap').innerHTML=`<div class="feedback bad" style="margin-top:10px"><strong>题量不足，无法生成：</strong>${r.gaps.map(g=>`${TYPES[g.t]} 需求 ${g.want} / 可用 ${g.have} / 缺口 ${g.want-g.have}`).join('；')}。请减少题量或放宽筛选。</div>`;
@@ -108,33 +109,37 @@ route('#/exam/run/:rid',rid=>{
   if(!paper){toast('试卷已删除','err');location.hash='#/papers';return;}
   if(rec.status!=='ongoing'){location.hash='#/exam/result/'+rid;return;}
   if(rec.deadline<=nowTs()){submitExam(rec,true).then(()=>location.hash='#/exam/result/'+rid).catch(()=>{});return;}
+  // 随机重考：本次考试使用记录里的抽题快照；否则沿用试卷快照
+  const qs=(Array.isArray(rec.questions)&&rec.questions.length)?rec.questions:paper.questions;
+  const total=qs.length;
   let cur=+(sessionStorage.getItem('exam_cur_'+rid)||0);
-  const q=paper.questions[cur];
+  if(cur<0||cur>=total)cur=0;
+  const q=qs[cur];
   const ans=rec.answers[q.qid];
   render(`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
-      <div><strong style="font-size:16px">${esc(paper.name)}</strong><div class="small muted">共 ${paper.questions.length} 题 · 满分 ${paper.totalScore??paper.total} 分 · 及格 ${paper.passScore} 分</div></div>
+      <div><strong style="font-size:16px">${esc(paper.name)}</strong><div class="small muted">共 ${total} 题 · 满分 ${paper.totalScore??paper.total} 分 · 及格 ${paper.passScore} 分${Array.isArray(rec.questions)&&rec.questions.length?' · 本次随机抽题':''}</div></div>
       <div class="timer" id="exTimer">--:--</div>
     </div>
-    <div class="progress-line"><i style="width:${cur/paper.total*100}%"></i></div>
+    <div class="progress-line"><i style="width:${cur/total*100}%"></i></div>
     <div class="q-card">
       <div class="meta" style="display:flex;gap:6px;flex-wrap:wrap"><span class="tag gray">第 ${cur+1} 题</span>${typeTag(q.type)}${diffTag(q.difficulty)}<span class="tag amber">${q.score} 分</span></div>
       <div class="q-stem">${esc(q.stem)}</div>
       <div id="exAns"></div>
       <div class="btn-row" style="margin-top:16px">
         <button class="btn" id="exPrev" ${cur===0?'disabled':''}>上一题</button>
-        <button class="btn" id="exNext" ${cur===paper.total-1?'disabled':''}>下一题</button>
+        <button class="btn" id="exNext" ${cur===total-1?'disabled':''}>下一题</button>
         <span style="flex:1"></span>
         <button class="btn accent" id="exSubmit">交卷</button>
       </div>
     </div>
-    <div class="card" style="margin-top:14px"><strong class="small">题目导航</strong><span class="small muted">（已答 ${Object.keys(rec.answers).length} / 未答 ${paper.total-Object.keys(rec.answers).length}）</span>
-      <div class="exam-nav">${paper.questions.map((qq,i)=>`<button class="${rec.answers[qq.qid]?'done':''} ${i===cur?'cur':''}" data-jump="${i}">${i+1}</button>`).join('')}</div>
+    <div class="card" style="margin-top:14px"><strong class="small">题目导航</strong><span class="small muted">（已答 ${Object.keys(rec.answers).length} / 未答 ${total-Object.keys(rec.answers).length}）</span>
+      <div class="exam-nav">${qs.map((qq,i)=>`<button class="${rec.answers[qq.qid]?'done':''} ${i===cur?'cur':''}" data-jump="${i}">${i+1}</button>`).join('')}</div>
     </div>`,'#/papers');
   // 作答区（逐题保存，可修改）
   const area=$('#exAns');
   const saveAns=c=>{if(c&&String(c).trim())rec.answers[q.qid]={content:c,ts:nowTs()};else delete rec.answers[q.qid];saveDB();};
   const autoNext=()=>{ // 单选/判断点选后自动确认并进入下一题
-    if(cur>=paper.total-1)return;
+    if(cur>=total-1)return;
     setTimeout(()=>{sessionStorage.setItem('exam_cur_'+rid,cur+1);dispatch();},260);
   };
   if(q.type==='single'||q.type==='multi'){
@@ -156,7 +161,7 @@ route('#/exam/run/:rid',rid=>{
     $('#exText').onchange=e=>{saveAns(e.target.value);refreshNav();};
   }
   function refreshNav(){
-    $$('.exam-nav button').forEach((b,i)=>b.classList.toggle('done',!!rec.answers[paper.questions[i].qid]));
+    $$('.exam-nav button').forEach((b,i)=>b.classList.toggle('done',!!rec.answers[qs[i].qid]));
   }
   $$('[data-jump]').forEach(b=>b.onclick=()=>{sessionStorage.setItem('exam_cur_'+rid,b.dataset.jump);dispatch();});
   // 答题卡自动滚动到当前题
@@ -167,7 +172,7 @@ route('#/exam/run/:rid',rid=>{
   $('#exPrev').onclick=()=>{sessionStorage.setItem('exam_cur_'+rid,cur-1);dispatch();};
   $('#exNext').onclick=()=>{sessionStorage.setItem('exam_cur_'+rid,cur+1);dispatch();};
   $('#exSubmit').onclick=()=>{
-    const undone=paper.total-Object.keys(rec.answers).length;
+    const undone=total-Object.keys(rec.answers).length;
     confirmBox('确认交卷？',`未作答 <strong>${undone}</strong> 题，交卷后不可修改答案。`,async()=>{await submitExam(rec,false).catch(()=>{});location.hash='#/exam/result/'+rid;},'确认交卷');
   };
   if(examTimer)clearInterval(examTimer);
@@ -209,47 +214,50 @@ route('#/exam/result/:rid',rid=>{
   }
   const paper=paperById(rec.paperId);
   if(!paper){toast('试卷已删除','err');location.hash='#/exams';return;}
+  const qs=(Array.isArray(rec.questions)&&rec.questions.length)?rec.questions:paper.questions;
+  const total=qs.length;
   const used=Math.round(((rec.submittedAt||nowTs())-rec.startedAt)/1000);
   let rightN=0;const per={};
-  paper.questions.forEach(q=>{
+  qs.forEach(q=>{
     const a=rec.answers[q.qid];
     const right=a?gradeAnswer({type:q.type,answer:q.answer},a.content):false;
     if(right)rightN++;
     per[q.type]=per[q.type]||{total:0,right:0,wrong:0,undone:0};
     per[q.type].total++;if(!a)per[q.type].undone++;else if(right)per[q.type].right++;else per[q.type].wrong++;
   });
-  const acc=paper.total?Math.round(rightN/paper.total*1000)/10:0;
+  const acc=total?Math.round(rightN/total*1000)/10:0;
   const pass=rec.score>=paper.passScore;
+  const randOn=!!(paper.config&&paper.config.randomOnRetake);
   const ansText=(q,c)=>{
     if(!c)return '<span class="muted">未作答</span>';
     if(q.type==='judge')return esc(c);
     if(q.type==='blank')return esc(c);
     return esc(c);
   };
-  render(`<h1 class="page-title">成绩报告</h1><div class="page-sub">${esc(paper.name)} · ${rec.status==='timeout'?'<span class="tag red">已超时交卷</span>':'<span class="tag green">已交卷</span>'} · 用时 ${Math.floor(used/60)} 分 ${used%60} 秒</div>
+  render(`<h1 class="page-title">成绩报告</h1><div class="page-sub">${esc(paper.name)} · ${rec.status==='timeout'?'<span class="tag red">已超时交卷</span>':'<span class="tag green">已交卷</span>'} · 用时 ${Math.floor(used/60)} 分 ${used%60} 秒${Array.isArray(rec.questions)&&rec.questions.length?' · 本次随机抽题':''}</div>
     <div class="stat-row">
       <div class="stat"><b style="color:${pass?'var(--green)':'var(--red)'}">${rec.score}</b><span>得分 / ${paper.totalScore??paper.total} 分</span></div>
       <div class="stat"><b>${acc}%</b><span>正确率</span></div>
       <div class="stat"><b style="color:${pass?'var(--green)':'var(--red)'}">${pass?'及格':'未及格'}</b><span>及格线 ${paper.passScore} 分</span></div>
       <div class="stat"><b style="color:var(--green)">${rightN}</b><span>答对</span></div>
-      <div class="stat"><b style="color:var(--red)">${paper.total-rightN}</b><span>答错/未答</span></div>
+      <div class="stat"><b style="color:var(--red)">${total-rightN}</b><span>答错/未答</span></div>
     </div>
     <div class="card"><h4 style="margin-bottom:8px">题型拆分</h4>
       <div class="table-wrap"><table><thead><tr><th>题型</th><th>题量</th><th>答对</th><th>答错</th><th>未答</th><th>得分</th></tr></thead><tbody>
-      ${Object.entries(per).map(([t,p])=>{const sq=paper.questions.find(x=>x.type===t);const sc=sq?sq.score:1;
+      ${Object.entries(per).map(([t,p])=>{const sq=qs.find(x=>x.type===t);const sc=sq?sq.score:1;
         return `<tr><td>${TYPES[t]}</td><td>${p.total}</td><td>${p.right}</td><td>${p.wrong}</td><td>${p.undone}</td><td>${Math.round(p.right*sc*10)/10} / ${Math.round(p.total*sc*10)/10}</td></tr>`;}).join('')}
       </tbody></table></div></div>
     <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <h4>逐题解析</h4><label class="small" style="cursor:pointer"><input type="checkbox" id="onlyWrong"> 只看错题</label></div>
       <div id="qList"></div></div>
     <div class="btn-row" style="margin-top:14px">
-      <button class="btn primary" id="reExam">再考一次（同一试卷）</button>
+      <button class="btn primary" id="reExam">再考一次${randOn?'（重新随机抽题）':'（同一试卷）'}</button>
       <button class="btn" id="exExpQ">导出试卷（无答案）</button>
       <button class="btn" id="exExpA">导出试卷（含答案解析）</button>
       <button class="btn" onclick="location.hash='#/exams'">返回考试记录</button>
     </div>`,'#/exams');
   const renderList=(onlyWrong)=>{
-    $('#qList').innerHTML=paper.questions.map((q,i)=>{
+    $('#qList').innerHTML=qs.map((q,i)=>{
       const a=rec.answers[q.qid];
       const right=a?gradeAnswer({type:q.type,answer:q.answer},a.content):false;
       if(onlyWrong&&right)return'';
@@ -263,8 +271,9 @@ route('#/exam/result/:rid',rid=>{
   };
   renderList(false);
   $('#onlyWrong').onchange=e=>renderList(e.target.checked);
-  $('#exExpQ').onclick=()=>exportPaper(paper,false);
-  $('#exExpA').onclick=()=>exportPaper(paper,true);
+  const exportSrc={...paper,questions:qs,total};
+  $('#exExpQ').onclick=()=>exportPaper(exportSrc,false);
+  $('#exExpA').onclick=()=>exportPaper(exportSrc,true);
   $('#reExam').onclick=()=>{startTemplateExam(paper.id).catch(e=>toast(e.message,'err'));};
 });
 /* ---- 导出试卷为 Word（.doc）；withAnswer=true 时答案与解析紧跟每题之后 ---- */
@@ -311,9 +320,10 @@ route('#/papers',()=>{
     const allRecs=DB.examRecords.filter(r=>r.paperId===p.id);
     const sh=DB.paperShares.filter(s=>s.paperId===p.id&&s.status==='active').length;
     const ongoing=myRecs.find(r=>r.status==='ongoing');
+    const randOn=!!(p.config&&p.config.randomOnRetake);
     return `<div class="bank-card">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><h4>${esc(p.name)}</h4>${own?'<span class="tag">我创建</span>':`<span class="tag accent">来自 ${esc(owner?owner.nickname||owner.username:'未知')}</span>`}</div>
-      <div class="meta"><span class="tag gray">${p.total} 题</span><span class="tag gray">满分 ${p.totalScore??p.total}</span><span class="tag gray">${(p.config&&p.config.duration)||90} 分钟</span>${own&&sh?`<span class="tag green">已共享 ${sh}</span>`:''}</div>
+      <div class="meta"><span class="tag gray">${p.total} 题</span><span class="tag gray">满分 ${p.totalScore??p.total}</span><span class="tag gray">${(p.config&&p.config.duration)||90} 分钟</span>${randOn?'<span class="tag accent">重考随机抽题</span>':''}${own&&sh?`<span class="tag green">已共享 ${sh}</span>`:''}</div>
       <div class="small muted">创建于 ${fmtTime(p.createdAt)} ｜ 我的考试 ${myRecs.length} 次${own?` ｜ 全部记录 ${allRecs.length} 条`:''}</div>
       <div class="btn-row">
         <button class="btn primary sm" data-start="${p.id}">${ongoing?'继续考试':'开始考试'}</button>
@@ -321,6 +331,7 @@ route('#/papers',()=>{
         ${own?`<button class="btn sm" data-share="${p.id}">共享</button><button class="btn ghost sm danger" data-delpaper="${p.id}">删除</button>`
           :`<button class="btn ghost sm danger" data-remove="${p.id}">移除</button>`}
       </div>
+      ${own?`<label class="switch" style="margin-top:8px"><input type="checkbox" data-rand="${p.id}" ${randOn?'checked':''}><span class="track"></span><span class="small">重考/共享重考时随机抽题</span></label>`:''}
     </div>`;
   }).join('');
   render(`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
@@ -336,6 +347,11 @@ route('#/papers',()=>{
   $$('.tab[data-t]').forEach(t=>t.onclick=()=>{paperTab=t.dataset.t;dispatch();});
   $('#newPaper').onclick=()=>{location.hash='#/exam/setup';};
   $$('[data-start]').forEach(b=>b.onclick=()=>startTemplateExam(b.dataset.start).catch(e=>toast(e.message,'err')));
+  $$('[data-rand]').forEach(cb=>cb.onchange=()=>{
+    const p=paperById(cb.dataset.rand);if(!p)return;
+    p.config=p.config||{};p.config.randomOnRetake=cb.checked;
+    saveDB();toast(cb.checked?'已开启：重考时随机抽题':'已关闭：重考沿用同一套题','ok');dispatch();
+  });
   $$('[data-records]').forEach(b=>b.onclick=()=>location.hash='#/exams/paper/'+b.dataset.records);
   $$('[data-share]').forEach(b=>b.onclick=()=>sharePaper(paperById(b.dataset.share)));
   $$('[data-delpaper]').forEach(b=>b.onclick=()=>{
@@ -357,7 +373,10 @@ route('#/papers',()=>{
 async function startTemplateExam(paperId){
   await flushSave();
   const r=await apiPost('exam/create',{paperId});
-  if(!r.ok)throw new Error(r.error||'无法开始考试');
+  if(!r.ok){
+    if(r.gaps)throw new Error('题量不足：'+r.gaps.map(g=>`${TYPES[g.t]} 需求 ${g.want}/可用 ${g.have}`).join('；'));
+    throw new Error(r.error||'无法开始考试');
+  }
   if(!DB.examRecords.some(x=>x.id===r.record.id))DB.examRecords.push(r.record);
   baseline();
   location.hash='#/exam/run/'+r.record.id;

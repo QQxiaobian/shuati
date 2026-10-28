@@ -184,6 +184,10 @@ function buildDb(u) {
   const examRecords = allRecords.filter(r => (r.userId || '') === uid || myPaperIds.has(r.paperId || ''));
   for (const rr of examRecords) {
     if (!rr.answers || typeof rr.answers !== 'object' || Array.isArray(rr.answers)) rr.answers = {};
+    // 随机重考的题目快照：考试进行中不下发答案与解析
+    if (Array.isArray(rr.questions) && (rr.status || '') === 'ongoing') {
+      for (const qq of rr.questions) { delete qq.answer; delete qq.analysis; }
+    }
   }
 
   // 进行中的试卷不下发答案；共享试卷在本人交卷前也不下发答案
@@ -325,7 +329,15 @@ function applyChanges(u, ups, del) {
     if (Array.isArray(U.papers)) {
       for (const pp of U.papers) {
         if (!pp || !pp.id) continue;
-        if (getRow('papers', pp.id)) continue;
+        const ex = getRow('papers', pp.id);
+        if (ex) {
+          // 已存在的试卷仅允许所有者/管理员改名称与配置（题目快照不可改，避免影响历史考试记录）
+          if ((ex.userId || '') !== uid && !adm) continue;
+          ex.name = pp.name ?? ex.name;
+          ex.config = (pp.config && typeof pp.config === 'object') ? pp.config : ex.config;
+          putRow('papers', pp.id, { user_id: ex.userId || uid }, ex);
+          continue;
+        }
         pp.userId = uid;
         putRow('papers', pp.id, { user_id: uid }, pp);
       }
@@ -340,9 +352,12 @@ function applyChanges(u, ups, del) {
           if ((ex.status || '') !== 'ongoing') continue;
           if ((r.status || 'ongoing') !== 'ongoing') continue;
           r.userId = uid;
+          // 随机重考记录的题目快照由服务端保存，客户端回传的版本已剥离答案，不能覆盖
+          if (Array.isArray(ex.questions) && ex.questions.length) r.questions = ex.questions;
           putRow('exam_records', r.id, { user_id: uid, paper_id: r.paperId || ex.paperId || '', status: 'ongoing' }, r);
         } else {
           if ((r.userId || uid) !== uid) r.userId = uid;
+          delete r.questions; // 题目快照只能由服务端开考接口写入，避免客户端伪造
           putRow('exam_records', r.id, { user_id: uid, paper_id: r.paperId || '', status: r.status || 'ongoing' }, r);
         }
       }
@@ -669,57 +684,19 @@ function shuffle(a) {
 }
 function pad2(n) { return String(n).padStart(2, '0'); }
 
-async function handleExamCreate(req, res) {
-  if (req.method !== 'POST') return jfail(res, '方法不支持', 405);
-  const u = requireMe(req, res);
-  if (!u) return;
-  const uid = u.id;
-  const j = await readJson(req);
-
-  /* 按已有试卷模板直接开考：不重新抽题，复用试卷快照，记录归属当前用户 */
-  const tplId = String(j.paperId ?? '').trim();
-  if (tplId) {
-    const tpl = getRow('papers', tplId);
-    if (!tpl) return jfail(res, '试卷不存在或已删除');
-    let allowed = isAdm(u) || (tpl.userId || '') === uid;
-    if (!allowed) {
-      allowed = allRows('paper_shares').some(s =>
-        (s.paperId || '') === tplId && (s.targetUserId || '') === uid && (s.status || '') === 'active');
-    }
-    if (!allowed) return jfail(res, '无权使用该试卷');
-    const duration = Math.max(1, Math.min(300, toInt(j.duration, (tpl.config && tpl.config.duration) || 90)));
-    const now = ms();
-    const ongoing = allRows('exam_records').find(r =>
-      (r.userId || '') === uid && (r.paperId || '') === tplId &&
-      (r.status || '') === 'ongoing' && Number(r.deadline || 0) > now - 30000);
-    let rec = ongoing;
-    if (!rec) {
-      rec = {
-        id: genId(), paperId: tpl.id, userId: uid, answers: {},
-        startedAt: now, deadline: now + duration * 60000, status: 'ongoing', score: null, submittedAt: null,
-      };
-      putRow('exam_records', rec.id, { user_id: uid, paper_id: tpl.id, status: 'ongoing' }, rec);
-    }
-    const paperOut = JSON.parse(JSON.stringify(tpl));
-    for (const qq of (paperOut.questions || [])) { delete qq.answer; delete qq.analysis; }
-    return json(res, 200, { ok: true, paper: paperOut, record: rec, reused: !!ongoing });
-  }
-
-  const d = new Date();
-  const name = String(j.name ?? '').trim() || `模拟试卷 ${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-  const bankIds = Array.isArray(j.banks) ? j.banks.filter(x => typeof x === 'string') : [];
-  const counts = (j.counts && typeof j.counts === 'object') ? j.counts : {};
-  const scores = (j.scores && typeof j.scores === 'object') ? j.scores : {};
-  const chaps = Array.isArray(j.chaps) ? j.chaps.filter(x => typeof x === 'string') : [];
-  const diffs = Array.isArray(j.diffs) ? j.diffs.filter(x => typeof x === 'string') : [];
-  const duration = Math.max(1, Math.min(300, toInt(j.duration, 90)));
-  const passPct = Math.max(1, Math.min(100, toInt(j.passPct, 60)));
-
-  if (!bankIds.length) return jfail(res, '请至少选择 1 个题库');
+/* 按试卷配置抽题：生成试卷与「重考随机抽题」共用 */
+function drawQuestions(cfg, uid, u, opts) {
+  const bypassBankCheck = !!(opts && opts.bypassBankCheck);
+  const bankIds = Array.isArray(cfg.banks) ? cfg.banks.filter(x => typeof x === 'string') : [];
+  const counts = (cfg.counts && typeof cfg.counts === 'object') ? cfg.counts : {};
+  const scores = (cfg.scores && typeof cfg.scores === 'object') ? cfg.scores : {};
+  const chaps = Array.isArray(cfg.chaps) ? cfg.chaps.filter(x => typeof x === 'string') : [];
+  const diffs = Array.isArray(cfg.diffs) ? cfg.diffs.filter(x => typeof x === 'string') : [];
+  if (!bankIds.length) return { ok: false, error: '请至少选择 1 个题库' };
   const types = ['single', 'multi', 'judge', 'blank'];
   let totalWanted = 0;
   for (const t of types) totalWanted += Math.max(0, toInt(counts[t], 0));
-  if (totalWanted < 1) return jfail(res, '总题量至少为 1 题');
+  if (totalWanted < 1) return { ok: false, error: '总题量至少为 1 题' };
 
   const usersById = {};
   for (const x of allRows('users')) usersById[x.id] = x;
@@ -727,9 +704,9 @@ async function handleExamCreate(req, res) {
   const visibleBids = [];
   for (const bid of bankIds) {
     const b = getRow('banks', bid);
-    if (b && (isAdm(u) || canReadBankArr(b, uid, usersById, sharesAll))) visibleBids.push(bid);
+    if (b && (bypassBankCheck || isAdm(u) || canReadBankArr(b, uid, usersById, sharesAll))) visibleBids.push(bid);
   }
-  if (!visibleBids.length) return jfail(res, '所选题库不可用');
+  if (!visibleBids.length) return { ok: false, error: '所选题库不可用' };
 
   const ph = visibleBids.map(() => '?').join(',');
   const pool = [];
@@ -769,7 +746,7 @@ async function handleExamCreate(req, res) {
       for (const q of av.slice(0, want)) picked.push({ q, score: sc });
     }
   }
-  if (gaps.length) return json(res, 200, { ok: false, error: '题量不足', gaps });
+  if (gaps.length) return { ok: false, error: '题量不足', gaps };
 
   const snap = [];
   let no = 1;
@@ -783,11 +760,82 @@ async function handleExamCreate(req, res) {
       chapter: q.chapter ?? '未设置章节', difficulty: q.difficulty ?? 'none', score: x.score,
     });
   }
+  return { ok: true, snap, banks: visibleBids };
+}
+
+async function handleExamCreate(req, res) {
+  if (req.method !== 'POST') return jfail(res, '方法不支持', 405);
+  const u = requireMe(req, res);
+  if (!u) return;
+  const uid = u.id;
+  const j = await readJson(req);
+
+  /* 按已有试卷模板开考：默认复用试卷快照；开启「重考随机抽题」时按原配置重新抽题，快照存进本次考试记录 */
+  const tplId = String(j.paperId ?? '').trim();
+  if (tplId) {
+    const tpl = getRow('papers', tplId);
+    if (!tpl) return jfail(res, '试卷不存在或已删除');
+    let allowed = isAdm(u) || (tpl.userId || '') === uid;
+    if (!allowed) {
+      allowed = allRows('paper_shares').some(s =>
+        (s.paperId || '') === tplId && (s.targetUserId || '') === uid && (s.status || '') === 'active');
+    }
+    if (!allowed) return jfail(res, '无权使用该试卷');
+    const cfg = (tpl.config && typeof tpl.config === 'object') ? tpl.config : {};
+    const duration = Math.max(1, Math.min(300, toInt(j.duration, cfg.duration || 90)));
+    const now = ms();
+    const ongoing = allRows('exam_records').find(r =>
+      (r.userId || '') === uid && (r.paperId || '') === tplId &&
+      (r.status || '') === 'ongoing' && Number(r.deadline || 0) > now - 30000);
+    let rec = ongoing;
+    if (!rec) {
+      let attempt = null;
+      if (cfg.randomOnRetake) {
+        // 试卷共享给他人时，接收方无权读取源题库，但已授权使用该试卷，可按原配置抽题
+        const dr = drawQuestions(cfg, uid, u, { bypassBankCheck: true });
+        if (!dr.ok) return json(res, 200, { ok: false, error: dr.error, gaps: dr.gaps });
+        attempt = dr.snap;
+      }
+      rec = {
+        id: genId(), paperId: tpl.id, userId: uid, answers: {},
+        startedAt: now, deadline: now + duration * 60000, status: 'ongoing', score: null, submittedAt: null,
+      };
+      if (attempt) rec.questions = attempt; // 本次随机抽题快照，仅服务端保存，下发前剥离答案
+      putRow('exam_records', rec.id, { user_id: uid, paper_id: tpl.id, status: 'ongoing' }, rec);
+    }
+    const paperOut = JSON.parse(JSON.stringify(tpl));
+    if (Array.isArray(rec.questions) && rec.questions.length) {
+      paperOut.questions = JSON.parse(JSON.stringify(rec.questions));
+      paperOut.total = rec.questions.length;
+    }
+    for (const qq of (paperOut.questions || [])) { delete qq.answer; delete qq.analysis; }
+    const recOut = JSON.parse(JSON.stringify(rec));
+    if (Array.isArray(recOut.questions)) {
+      for (const qq of recOut.questions) { delete qq.answer; delete qq.analysis; }
+    }
+    return json(res, 200, { ok: true, paper: paperOut, record: recOut, reused: !!ongoing, random: Array.isArray(rec.questions) });
+  }
+
+  const d = new Date();
+  const name = String(j.name ?? '').trim() || `模拟试卷 ${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const counts = (j.counts && typeof j.counts === 'object') ? j.counts : {};
+  const scores = (j.scores && typeof j.scores === 'object') ? j.scores : {};
+  const chaps = Array.isArray(j.chaps) ? j.chaps.filter(x => typeof x === 'string') : [];
+  const diffs = Array.isArray(j.diffs) ? j.diffs.filter(x => typeof x === 'string') : [];
+  const duration = Math.max(1, Math.min(300, toInt(j.duration, 90)));
+  const passPct = Math.max(1, Math.min(100, toInt(j.passPct, 60)));
+
+  const drawn = drawQuestions({ banks: j.banks, counts, scores, chaps, diffs }, uid, u);
+  if (!drawn.ok) {
+    if (drawn.gaps) return json(res, 200, { ok: false, error: drawn.error, gaps: drawn.gaps });
+    return jfail(res, drawn.error);
+  }
+  const snap = drawn.snap;
   const totalScore = Math.round(snap.reduce((s, x) => s + Number(x.score || 0), 0) * 10) / 10;
   const now = ms();
   const paper = {
     id: genId(), userId: uid, name,
-    config: { banks: visibleBids, counts, scores, duration, passPct },
+    config: { banks: drawn.banks, counts, scores, chaps, diffs, duration, passPct, randomOnRetake: !!j.randomOnRetake },
     questions: snap, total: snap.length, totalScore,
     passScore: Math.round(totalScore * passPct / 100), createdAt: now,
   };
@@ -820,12 +868,17 @@ async function handleExamSubmit(req, res) {
   for (const x of allRows('users')) usersById[x.id] = x;
   const sharesAll = allRows('shares');
 
+  // 随机重考的记录自带本次抽题快照，优先使用；否则沿用试卷快照
+  const qs = (Array.isArray(rec.questions) && rec.questions.length)
+    ? rec.questions
+    : (Array.isArray(paper.questions) ? paper.questions : []);
+
   db.exec('BEGIN');
   try {
     let score = 0;
     const wrongOnce = new Set();
     const answers = (rec.answers && typeof rec.answers === 'object' && !Array.isArray(rec.answers)) ? rec.answers : {};
-    for (const q of (Array.isArray(paper.questions) ? paper.questions : [])) {
+    for (const q of qs) {
       const a = answers[q.qid] ?? null;
       const content = (a && typeof a === 'object') ? (a.content ?? '') : '';
       const right = a ? gradeQ(q.type, q.answer ?? '', content) : false;
