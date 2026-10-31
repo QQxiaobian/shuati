@@ -3,8 +3,8 @@ name: shutibao
 services:
   app:
     build:
-      # 直接从 GitHub 的 docker 分支拉取源码构建，无需手动 clone
-      context: https://github.com/QQxiaobian/shuati.git#docker
+      # 直接从 GitHub 的 main 分支拉取源码构建，无需手动 clone
+      context: https://github.com/QQxiaobian/shuati.git#main
       dockerfile: Dockerfile
       args:
         # 默认走 DaoCloud 镜像源，避免部分 NAS 的 docker.io 加速器返回 401

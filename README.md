@@ -4,12 +4,12 @@ Node.js + SQLite 的多用户刷题系统：题库导入、五种练习方式、
 
 ## 部署（Docker，推荐）
 
-只需一个 `docker-compose.yml`，无需手动 clone 代码、无需 MySQL：首次启动时 Compose 会自动从 GitHub `docker` 分支下载源码构建镜像，启动时自动创建 SQLite 数据库与默认管理员。需要已安装 Docker 与 Docker Compose v2。
+只需一个 `docker-compose.yml`，无需手动 clone 代码、无需 MySQL：首次启动时 Compose 会自动从 GitHub `main` 分支下载源码构建镜像，启动时自动创建 SQLite 数据库与默认管理员。需要已安装 Docker 与 Docker Compose v2。
 
 1. 新建一个目录，放入本仓库的 `docker-compose.yml`（也可直接下载）：
 
    ```bash
-   curl -O https://raw.githubusercontent.com/QQxiaobian/shuati/docker/docker-compose.yml
+   curl -O https://raw.githubusercontent.com/QQxiaobian/shuati/main/docker-compose.yml
    ```
 2. 启动：
 
