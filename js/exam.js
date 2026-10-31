@@ -14,16 +14,8 @@ route('#/exam/setup',()=>{
       <div class="field"><label>题库范围（可多选）</label>
         <div class="check-row" id="exBanks">${readable.length?readable.map(b=>`<label><input type="checkbox" value="${b.id}" ${EX.banks.includes(b.id)?'checked':''}> ${esc(b.name)}（${bankQuestions(b.id).length}）</label>`).join(''):'<span class="muted small">暂无有题目的题库</span>'}</div>
       </div>
-      <div class="field"><label>题型、题量与每题分值（可用量实时统计）</label>
-        <div class="inline-fields" id="exCounts">
-          ${['single','multi','judge','blank'].map(t=>`<div class="field"><label class="small">${TYPES[t]} <span class="muted" id="av_${t}"></span></label>
-            <div style="display:flex;align-items:center;gap:4px">
-              <input class="input ex-count" data-t="${t}" type="number" min="0" value="${EX.counts[t]}" style="width:64px" title="题量">
-              <span class="small muted nowrap">题 ×</span>
-              <input class="input ex-score" data-t="${t}" type="number" min="0.5" step="0.5" value="${EX.scores[t]}" style="width:64px" title="每题分值">
-              <span class="small muted nowrap">分</span>
-            </div></div>`).join('')}
-        </div>
+      <div class="field"><label>题型、题量与每题分值（仅显示所选题库中实际存在的题型）</label>
+        <div class="inline-fields" id="exCounts"></div>
         <div class="hint" id="exScoreSum"></div>
         <div class="hint">简答题不进入自动判分试卷</div>
       </div>
@@ -40,13 +32,43 @@ route('#/exam/setup',()=>{
       <div id="exGap"></div>
       <div class="modal-foot" style="justify-content:flex-end"><button class="btn primary lg" id="exGen">生成试卷</button></div>
     </div>`,'#/papers');
-  const updateAvail=()=>{
-    EX.banks=$$('#exBanks input:checked').map(i=>i.value);
-    const pool=poolQuestions();
-    ['single','multi','judge','blank'].forEach(t=>{
-      const n=pool.filter(q=>q.type===t).length;const el=$('#av_'+t);if(el)el.textContent=`(可用 ${n})`;
-    });
-    return pool;
+  const ALL_TYPES=['single','multi','judge','blank'];
+  const DEF_COUNTS={single:5,multi:2,judge:5,blank:2};
+  const DEF_SCORES={single:1,multi:2,judge:1,blank:2};
+  const readCountInputs=()=>{ // 同步输入框到 EX，供切换题库/筛选时保留用户已填数值
+    $$('.ex-count').forEach(i=>{EX.counts[i.dataset.t]=Math.max(0,+i.value||0);});
+    $$('.ex-score').forEach(i=>{EX.scores[i.dataset.t]=Math.max(0.5,+i.value||1);});
+  };
+  const updateScoreSum=()=>{
+    const total=ALL_TYPES.reduce((a,t)=>a+(EX.counts[t]||0)*(EX.scores[t]||1),0);
+    const el=$('#exScoreSum');if(el)el.textContent=total>0?`预计满分：${Math.round(total*10)/10} 分（及格线按总分的百分比折算）`:'';
+  };
+  /* 题型行按当前题库实际拥有的题型渲染，题库没有的题型不出现 */
+  const renderTypeRows=pool=>{
+    const by={};ALL_TYPES.forEach(t=>by[t]=pool.filter(q=>q.type===t).length);
+    const types=ALL_TYPES.filter(t=>by[t]>0);
+    ALL_TYPES.forEach(t=>{if(by[t]<=0)EX.counts[t]=0;});
+    const box=$('#exCounts');if(!box)return;
+    if(!types.length){
+      box.innerHTML='<div class="hint">所选题库中暂无可用于自动判分的题目（简答题不参与抽题）</div>';
+      updateScoreSum();return;
+    }
+    box.innerHTML=types.map(t=>{
+      const maxN=by[t];
+      const cnt=Math.min(EX.counts[t]??DEF_COUNTS[t],maxN);
+      EX.counts[t]=cnt;
+      const sc=EX.scores[t]??DEF_SCORES[t];
+      return `<div class="field"><label class="small">${TYPES[t]} <span class="muted">(可用 ${maxN})</span></label>
+        <div style="display:flex;align-items:center;gap:4px">
+          <input class="input ex-count" data-t="${t}" type="number" min="0" max="${maxN}" value="${cnt}" style="width:64px" title="题量">
+          <span class="small muted nowrap">题 ×</span>
+          <input class="input ex-score" data-t="${t}" type="number" min="0.5" step="0.5" value="${sc}" style="width:64px" title="每题分值">
+          <span class="small muted nowrap">分</span>
+        </div></div>`;
+    }).join('');
+    $$('.ex-count').forEach(i=>i.oninput=()=>{EX.counts[i.dataset.t]=Math.max(0,+i.value||0);updateScoreSum();});
+    $$('.ex-score').forEach(i=>i.oninput=()=>{EX.scores[i.dataset.t]=Math.max(0.5,+i.value||1);updateScoreSum();});
+    updateScoreSum();
   };
   const poolQuestions=()=>{
     const selChaps=[...($('#exChap')?$('#exChap').selectedOptions:[])].map(o=>o.value);
@@ -59,25 +81,27 @@ route('#/exam/setup',()=>{
     const seen=new Set();pool=pool.filter(q=>{const k=dedupeKey(q);if(seen.has(k))return false;seen.add(k);return true;});
     return pool;
   };
+  const updateAvail=()=>{
+    EX.banks=$$('#exBanks input:checked').map(i=>i.value);
+    readCountInputs();
+    const pool=poolQuestions();
+    renderTypeRows(pool);
+    return pool;
+  };
   const refreshChaps=()=>{
     EX.banks=$$('#exBanks input:checked').map(i=>i.value);
     const chaps=allChapters(EX.banks);
     $('#exChap').innerHTML=chaps.map(c=>`<option>${esc(c)}</option>`).join('');
     updateAvail();
   };
-  const updateScoreSum=()=>{
-    const total=['single','multi','judge','blank'].reduce((a,t)=>a+(EX.counts[t]||0)*(EX.scores[t]||1),0);
-    const el=$('#exScoreSum');if(el)el.textContent=total>0?`预计满分：${Math.round(total*10)/10} 分（及格线按总分的百分比折算）`:'';
-  };
   $$('#exBanks input').forEach(i=>i.onchange=refreshChaps);
-  $$('.ex-count').forEach(i=>i.oninput=()=>{EX.counts[i.dataset.t]=Math.max(0,+i.value||0);updateScoreSum();});
-  $$('.ex-score').forEach(i=>i.oninput=()=>{EX.scores[i.dataset.t]=Math.max(0.5,+i.value||1);updateScoreSum();});
   refreshChaps();updateScoreSum();
   $('#exChap').onchange=updateAvail;$('#exDiff').onchange=updateAvail;
   $('#exGen').onclick=async()=>{
     EX.name=$('#exName').value.trim()||EX.name;
     EX.duration=Math.min(300,Math.max(1,+$('#exDur').value||90));
     EX.passPct=Math.min(100,Math.max(1,+$('#exPass').value||60));
+    readCountInputs(); // 以界面当前题型题量为准（不存在的题型已被置 0）
     if(!EX.banks.length)return toast('请至少选择 1 个题库','err');
     const totalWanted=Object.values(EX.counts).reduce((a,b)=>a+b,0);
     if(totalWanted<1)return toast('总题量至少为 1 题','err');

@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS shares (id TEXT PRIMARY KEY, bank_id TEXT, owner_id T
 CREATE TABLE IF NOT EXISTS paper_shares (id TEXT PRIMARY KEY, paper_id TEXT, owner_id TEXT, target_user_id TEXT, link_token TEXT, status TEXT, data TEXT);
 CREATE TABLE IF NOT EXISTS favorites (id TEXT PRIMARY KEY, user_id TEXT, question_id TEXT, data TEXT);
 CREATE TABLE IF NOT EXISTS import_tasks (id TEXT PRIMARY KEY, user_id TEXT, data TEXT);
+CREATE TABLE IF NOT EXISTS practice_progress (id TEXT PRIMARY KEY, user_id TEXT, data TEXT);
 CREATE TABLE IF NOT EXISTS audit_logs (id TEXT PRIMARY KEY, ts INTEGER, data TEXT);
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, data TEXT);
 CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL);
@@ -69,10 +70,11 @@ CREATE INDEX IF NOT EXISTS idx_paper_shares_paper ON paper_shares(paper_id);
 CREATE INDEX IF NOT EXISTS idx_paper_shares_target ON paper_shares(target_user_id);
 CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);
 CREATE INDEX IF NOT EXISTS idx_import_tasks_user ON import_tasks(user_id);
+CREATE INDEX IF NOT EXISTS idx_practice_progress_user ON practice_progress(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 `);
 
-const TABLES = new Set(['users', 'banks', 'questions', 'answers', 'wrongbook', 'papers', 'exam_records', 'shares', 'paper_shares', 'favorites', 'import_tasks', 'audit_logs']);
+const TABLES = new Set(['users', 'banks', 'questions', 'answers', 'wrongbook', 'papers', 'exam_records', 'shares', 'paper_shares', 'favorites', 'import_tasks', 'practice_progress', 'audit_logs']);
 
 function getRow(t, id) {
   const r = db.prepare(`SELECT data FROM ${t} WHERE id=?`).get(id);
@@ -214,9 +216,8 @@ function buildDb(u) {
     builtinCategories: metaGet('builtinCategories', []),
     builtinBanks: metaGet('builtinBanks', []),
     users, banks, questions, answers, wrongBook, papers, examRecords, shares, paperShares,
-    favorites, importTasks,
+    favorites, importTasks, practiceProgress: mine('practice_progress'),
     auditLogs: adm ? allRows('audit_logs') : [],
-    practiceSessions: {},
   };
 }
 
@@ -307,7 +308,7 @@ function applyChanges(u, ups, del) {
       }
     }
 
-    const personal = [['answers', 'answers'], ['wrongBook', 'wrongbook'], ['favorites', 'favorites'], ['importTasks', 'import_tasks']];
+    const personal = [['answers', 'answers'], ['wrongBook', 'wrongbook'], ['favorites', 'favorites'], ['importTasks', 'import_tasks'], ['practiceProgress', 'practice_progress']];
     for (const [key, table] of personal) {
       if (Array.isArray(U[key])) {
         for (const row of U[key]) {

@@ -93,8 +93,8 @@ route('#/banks',()=>{
     }
     if(act==='copyBuiltin')copyBuiltin(id);
   });
-  $$('[data-resume-p]').forEach(b=>b.onclick=()=>{const p=loadPS('practice');if(!p)return;PS=p;location.hash='#/practice/run';});
-  $$('[data-resume-r]').forEach(b=>b.onclick=()=>{const p=loadPS('recite');if(!p)return;PS=p;location.hash='#/practice/run';});
+  $$('[data-resume-p]').forEach(b=>b.onclick=()=>{const p=loadPS('practice','bank',b.dataset.resumeP);if(!p)return;PS=p;location.hash='#/practice/run';});
+  $$('[data-resume-r]').forEach(b=>b.onclick=()=>{const p=loadPS('recite','bank',b.dataset.resumeR);if(!p)return;PS=p;location.hash='#/practice/run';});
 });
 function newBankDialog(){
   openModal(`<h3>新建空题库</h3>
@@ -187,8 +187,8 @@ route('#/bank/:id',id=>{
     </div>`,'#/banks');
   $('#bkPractice').onclick=()=>location.hash='#/practice/setup/'+id;
   $('#bkExam').onclick=()=>location.hash='#/exam/setup?bank='+id;
-  const rp=$('#bkResumeP');if(rp)rp.onclick=()=>{const p=loadPS('practice');if(!p)return;PS=p;location.hash='#/practice/run';};
-  const rr=$('#bkResumeR');if(rr)rr.onclick=()=>{const p=loadPS('recite');if(!p)return;PS=p;location.hash='#/practice/run';};
+  const rp=$('#bkResumeP');if(rp)rp.onclick=()=>{const p=loadPS('practice','bank',id);if(!p)return;PS=p;location.hash='#/practice/run';};
+  const rr=$('#bkResumeR');if(rr)rr.onclick=()=>{const p=loadPS('recite','bank',id);if(!p)return;PS=p;location.hash='#/practice/run';};
   $$('[data-favq]').forEach(x=>x.onclick=()=>{
     const q=questionById(x.dataset.favq);if(!q)return;
     const on=toggleFav(q);toast(on?'已收藏':'已取消收藏','ok');dispatch();
