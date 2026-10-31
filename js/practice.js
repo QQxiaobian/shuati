@@ -1,24 +1,43 @@
 'use strict';
 /* ================= 练习与错题本 ================= */
-let PS=null; // {mode,bankId,filters,qids,idx,answers:{qid:{content,correct}},startTs}
-const PKEY='shutibao_practice';
+let PS=null; // {mode,bankId,scope,filters,qids,idx,answers:{qid:{content,correct}},startTs}
 const RECITE_ONLY_KEY='shutibao_recite_only';
 function psMode(m){return m==='recite'?'recite':(m==='one'?'one':'practice');}
-/* 进度按「来源(scope) + 模式(刷题/背题)」分开存储：bank=题库练习，wrong=错题练习，one=单题，fav=收藏练习 */
+/* 进度按「用户 + 来源(scope) + 题库(bankId) + 模式(刷题/背题)」分开存储，并随数据同步到服务器
+   scope：bank=题库练习，wrong=错题练习，one=单题，fav=收藏练习 */
 function psScope(s){return s||'bank';}
-function psKey(m,scope){
-  const sc=psScope(scope);
-  return PKEY+'_'+currentUser().id+'_'+(sc==='bank'?'':sc+'_')+psMode(m);
+function ppList(){if(!DB)return[];if(!Array.isArray(DB.practiceProgress))DB.practiceProgress=[];return DB.practiceProgress;}
+function ppId(scope,bankId,mode,userId){return 'pp_'+userId+'_'+psScope(scope)+'_'+(bankId||'all')+'_'+psMode(mode);}
+function ppFind(scope,bankId,mode){
+  const u=currentUser();if(!u)return null;
+  const id=ppId(scope,bankId,mode,u.id);
+  return ppList().find(p=>p.id===id)||null;
 }
-function savePS(){if(!PS||!currentUser())return;localStorage.setItem(psKey(PS.mode,PS.scope),JSON.stringify(PS));}
-function loadPS(m,scope){try{return JSON.parse(localStorage.getItem(psKey(m,scope)));}catch(e){return null;}}
-function clearPS(m,scope){
-  if(!currentUser())return;
-  localStorage.removeItem(psKey(m||(PS?PS.mode:'practice'),scope||(PS?PS.scope:'bank')));
+function savePS(){
+  const u=currentUser();if(!PS||!u)return;
+  const id=ppId(PS.scope,PS.bankId,PS.mode,u.id);
+  const rec=Object.assign({},PS,{id,userId:u.id,scope:psScope(PS.scope),bankId:PS.bankId||null,savedAt:nowTs()});
+  const list=ppList();const i=list.findIndex(p=>p.id===id);
+  if(i>=0)list[i]=rec;else list.push(rec);
+  saveDB();
 }
-/* 题库维度的续练进度：刷题/背题各自独立 */
+function loadPS(m,scope,bankId){return ppFind(scope,bankId,m);}
+function clearPS(m,scope,bankId){
+  const u=currentUser();if(!u)return;
+  const id=ppId(scope,bankId,m,u.id);
+  const list=ppList();const i=list.findIndex(p=>p.id===id);
+  if(i<0)return;
+  list.splice(i,1);saveDB();
+}
+function latestPS(){
+  const u=currentUser();if(!u)return null;
+  const list=ppList().filter(p=>p.userId===u.id);
+  if(!list.length)return null;
+  return list.slice().sort((a,b)=>(b.savedAt||0)-(a.savedAt||0))[0];
+}
+/* 题库维度的续练进度：每个题库的刷题/背题各自独立 */
 function progressFor(bankId,mode,scope){
-  const p=loadPS(mode,scope||'bank');
+  const p=loadPS(mode,scope||'bank',bankId);
   if(!p||!Array.isArray(p.qids)||!p.qids.length)return null;
   if(bankId&&p.bankId!==bankId)return null;
   return p;
@@ -115,7 +134,7 @@ route('#/practice/setup/:bankId',bankId=>{
       </div>
     </div>`,'#/banks');
   $$('[data-resume]').forEach(btn=>btn.onclick=()=>{
-    const p=loadPS(btn.dataset.resume);if(!p)return;
+    const p=loadPS(btn.dataset.resume,'bank',bankId);if(!p)return;
     PS=p;location.hash='#/practice/run';
   });
   const update=()=>{
@@ -140,7 +159,7 @@ route('#/practice/setup/:bankId',bankId=>{
     savePS();location.hash='#/practice/run';
   };
 });
-/* ---- 错题练习设置 ---- */
+/* ---- 错题练习设置（可按题库分开刷题） ---- */
 route('#/practice/wrong',()=>{
   if(!requireAuth())return;
   refreshWrongValidity();
@@ -148,10 +167,19 @@ route('#/practice/wrong',()=>{
   const f={type:'全部',result:'全部',judge:'不限',chap:'全部',diff:'全部'};
   const wbIds=DB.wrongBook.filter(w=>w.userId===u.id&&w.status==='unmastered').map(w=>w.questionId);
   const qs0=wbIds.map(questionById).filter(Boolean);
+  const bankIds=[...new Set(qs0.map(q=>q.bankId))];
+  let selBank=(wbWrongBank&&bankIds.includes(wbWrongBank))?wbWrongBank:'全部';
+  wbWrongBank=null;
+  const inBank=q=>selBank==='全部'||q.bankId===selBank;
   render(`<div class="btn-row" style="margin-bottom:12px"><button class="btn ghost" onclick="location.hash='#/wrongbook'">← 返回错题本</button></div>
-    <h1 class="page-title">错题练习</h1><div class="page-sub">范围为「未掌握」错题，连续答对 ${DB.settings.wrongThreshold||2} 次标记为已掌握</div>
+    <h1 class="page-title">错题练习</h1><div class="page-sub">范围为「未掌握」错题，连续答对 ${DB.settings.wrongThreshold||2} 次标记为已掌握；可按题库单独练习</div>
     <div class="card">
-      ${filterPanelHTML([...new Set(qs0.map(q=>q.bankId))],f,true)}
+      <div class="field" style="margin-bottom:12px"><label class="small">题库</label>
+        <select class="input" id="fBank" style="max-width:300px">
+          <option value="全部" ${selBank==='全部'?'selected':''}>全部题库（${qs0.length} 题）</option>
+          ${bankIds.map(id=>{const b=bankById(id);return b?`<option value="${id}" ${selBank===id?'selected':''}>${esc(b.name)}（${qs0.filter(q=>q.bankId===id).length} 题）</option>`:'';}).join('')}
+        </select></div>
+      ${filterPanelHTML(bankIds,f,true)}
       <div style="margin-top:10px"><label class="small" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="shuffleOpts"> 选项乱序</label></div>
       <div style="margin-top:14px;display:flex;align-items:center;gap:12px">
         <span>匹配题量：<strong id="matchN" style="color:var(--brand);font-size:18px">0</strong></span>
@@ -162,17 +190,20 @@ route('#/practice/wrong',()=>{
   const update=()=>{
     const ff=readFilters();
     $('#fJudge').disabled=ff.type!=='judge'&&ff.type!=='全部';
-    $('#matchN').textContent=qs0.filter(q=>matchFilters(q,u.id,ff)).length;
-    $('#startP').disabled=!+$('#matchN').textContent;
+    const n=qs0.filter(q=>inBank(q)&&matchFilters(q,u.id,ff)).length;
+    $('#matchN').textContent=n;
+    $('#startP').disabled=!n;
   };
-  ['fType','fResult','fJudge','fChap','fDiff'].forEach(id=>$('#'+id).onchange=update);update();
+  ['fType','fResult','fJudge','fChap','fDiff'].forEach(id=>$('#'+id).onchange=update);
+  $('#fBank').onchange=e=>{selBank=e.target.value;update();};
+  update();
   $('#startP').onclick=()=>{
     const ff=readFilters();
     const shuffleOpts=$('#shuffleOpts').checked;
     const ws=DB.wrongBook.filter(w=>w.userId===u.id&&w.status==='unmastered').sort((a,b)=>b.lastWrongTs-a.lastWrongTs);
-    const qs=ws.map(w=>questionById(w.questionId)).filter(q=>q&&matchFilters(q,u.id,ff));
+    const qs=ws.map(w=>questionById(w.questionId)).filter(q=>q&&inBank(q)&&matchFilters(q,u.id,ff));
     const qids=qs.map(q=>q.id);
-    PS={mode:'wrong',scope:'wrong',back:'#/wrongbook',bankId:null,filters:ff,qids,idx:0,answers:{},startTs:nowTs(),autoNext:localStorage.getItem('shutibao_autonext')==='1',shuffleOpts,optMap:shuffleOpts?genOptMap(qids):null};
+    PS={mode:'wrong',scope:'wrong',back:'#/wrongbook',bankId:selBank==='全部'?null:selBank,filters:ff,qids,idx:0,answers:{},startTs:nowTs(),autoNext:localStorage.getItem('shutibao_autonext')==='1',shuffleOpts,optMap:shuffleOpts?genOptMap(qids):null};
     savePS();location.hash='#/practice/run';
   };
 });
@@ -246,8 +277,8 @@ route('#/favorites',()=>{
 /* 收藏练习：bankId 为空表示全部收藏；recite=true 进入背题 */
 function startFavPractice(bankId,recite){
   const mode=recite?'recite':'practice';
-  const saved=loadPS(mode,'fav');
-  const canResume=saved&&Array.isArray(saved.qids)&&saved.qids.length&&(bankId?saved.bankId===bankId:!saved.bankId);
+  const saved=loadPS(mode,'fav',bankId||null);
+  const canResume=!!(saved&&Array.isArray(saved.qids)&&saved.qids.length);
   if(canResume){PS=saved;location.hash='#/practice/run';return;}
   const qids=myFavorites().filter(f=>{
     const q=questionById(f.questionId);const b=q&&bankById(q.bankId);
@@ -261,8 +292,7 @@ function startFavPractice(bankId,recite){
 /* ---- 练习运行 ---- */
 route('#/practice/run',()=>{
   if(!requireAuth())return;
-  if(!PS)PS=loadPS('practice')||loadPS('practice','wrong')||loadPS('practice','fav')||loadPS('practice','one')
-    ||loadPS('recite')||loadPS('recite','fav')||loadPS('recite','wrong')||loadPS('recite','one');
+  if(!PS)PS=latestPS(); // 刷新页面后恢复最近一次练习进度（按题库/模式分别保存）
   if(!PS||!PS.qids.length){toast('没有进行中的练习','warn');location.hash='#/banks';return;}
   const backHash=PS.back||(PS.mode==='wrong'?'#/wrongbook':(PS.bankId?'#/bank/'+PS.bankId:'#/banks'));
   const qid=PS.qids[PS.idx];const q=questionById(qid);
@@ -373,7 +403,7 @@ route('#/practice/run',()=>{
   }
   $('#pExit').onclick=()=>{
     if(Object.keys(PS.answers).length&&Object.keys(PS.answers).length<PS.qids.length){savePS();toast('进度已保存，可继续练习','ok');}
-    else clearPS();
+    else clearPS(PS.mode,PS.scope,PS.bankId);
     PS=null;location.hash=backHash;
   };
   const skip=$('#pSkip');if(skip)skip.onclick=()=>{ // 跳过=未做
@@ -463,7 +493,7 @@ function renderRecite(q,bank){
   $('#pPrev').onclick=()=>{if(PS.idx>0){PS.idx--;savePS();dispatch();}};
   $('#pNext').onclick=()=>{
     if(!last){PS.idx++;savePS();dispatch();}
-    else{const n=PS.qids.length;clearPS();PS=null;toast(`背题完成，共浏览 ${n} 题`,'ok');location.hash=backHash;}
+    else{const n=PS.qids.length;clearPS(PS.mode,PS.scope,PS.bankId);PS=null;toast(`背题完成，共浏览 ${n} 题`,'ok');location.hash=backHash;}
   };
 }
 function finishPractice(){
@@ -493,14 +523,14 @@ function finishPractice(){
       <button class="btn primary" id="reWrong" ${wrongQids.length?'':'disabled'}>重练错题（${wrongQids.length}）</button>
       <button class="btn" onclick="location.hash='${backHash}'">返回</button>
     </div></div>`,backHash);
-  clearPS();PS=null;
+  clearPS(PS.mode,PS.scope,PS.bankId);PS=null;
   $('#reWrong').onclick=()=>{
     PS={mode:'wrong',scope:'wrong',back:'#/wrongbook',bankId:null,filters:{},qids:wrongQids,idx:0,answers:{},startTs:nowTs()};
     savePS();location.hash='#/practice/run';
   };
 }
 /* ================= 错题本 ================= */
-let wbStatus='unmastered',wbType='全部',wbBank='全部',wbPage=1,wbSel=new Set();
+let wbStatus='unmastered',wbType='全部',wbBank='全部',wbPage=1,wbSel=new Set(),wbWrongBank=null;
 route('#/wrongbook',()=>{
   if(!requireAuth())return;
   refreshWrongValidity();
@@ -510,6 +540,7 @@ route('#/wrongbook',()=>{
   list=list.filter(w=>w.status===wbStatus);
   const wbBankIds=[...new Set(list.map(w=>{const q=questionById(w.questionId);return q?q.bankId:null;}).filter(Boolean))];
   if(wbBank!=='全部'&&!wbBankIds.includes(wbBank))wbBank='全部';
+  const unmasteredInBank=DB.wrongBook.filter(w=>w.userId===u.id&&w.status==='unmastered').map(w=>questionById(w.questionId)).filter(q=>q&&(wbBank==='全部'||q.bankId===wbBank)).length;
   if(wbType!=='全部')list=list.filter(w=>{const q=questionById(w.questionId);return q&&q.type===wbType;});
   if(wbBank!=='全部')list=list.filter(w=>{const q=questionById(w.questionId);return q&&q.bankId===wbBank;});
   list.sort((a,b)=>b.lastWrongTs-a.lastWrongTs);
@@ -520,7 +551,7 @@ route('#/wrongbook',()=>{
   wbSel=new Set([...wbSel].filter(id=>DB.wrongBook.some(w=>w.id===id&&w.userId===u.id)));
   render(`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div><h1 class="page-title">错题本</h1><div class="page-sub">答错自动收录；连续答对 ${DB.settings.wrongThreshold||2} 次标记已掌握</div></div>
-      <button class="btn primary" id="wbPractice" ${counts.unmastered?'':'disabled'}>开始错题练习（${counts.unmastered}）</button>
+      <button class="btn primary" id="wbPractice" ${unmasteredInBank?'':'disabled'}>开始错题练习（${wbBank==='全部'?'全部':esc((bankById(wbBank)||{}).name||'')} ${unmasteredInBank} 题）</button>
     </div>
     <div class="tabs">
       <button class="tab ${wbStatus==='unmastered'?'active':''}" data-s="unmastered">未掌握（${counts.unmastered}）</button>
@@ -554,7 +585,7 @@ route('#/wrongbook',()=>{
       </tbody></table></div><div>${pager(list.length,wbPage,per,p=>{wbPage=p;dispatch();})}</div>`
       :`<div class="empty"><div class="big">✅</div><p>${wbStatus==='unmastered'?'暂无未掌握错题，保持住！':wbStatus==='mastered'?'暂无已掌握错题':'暂无已失效记录'}</p></div>`}
     </div>`,'#/wrongbook');
-  $('#wbPractice').onclick=()=>location.hash='#/practice/wrong';
+  $('#wbPractice').onclick=()=>{wbWrongBank=(wbBank==='全部'?null:wbBank);location.hash='#/practice/wrong';};
   $$('.tab[data-s]').forEach(t=>t.onclick=()=>{wbStatus=t.dataset.s;wbPage=1;wbSel.clear();dispatch();});
   $('#wbType').onchange=e=>{wbType=e.target.value;wbPage=1;wbSel.clear();dispatch();};
   $('#wbBank').onchange=e=>{wbBank=e.target.value;wbPage=1;wbSel.clear();dispatch();};

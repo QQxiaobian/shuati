@@ -17,13 +17,13 @@ function hashPwd(s){ // cyrb53 不可逆哈希 + 盐（纯前端演示级）
 /* ================= 数据层（服务器同步 + 本地缓存） ================= */
 let DB=null;
 let BASE=null; // 上次与服务器一致时的行哈希基线 {table:{id:hash}, settings/builtin*:hash}
-const SYNC_TABLES=['banks','questions','answers','wrongBook','papers','examRecords','shares','paperShares','favorites','importTasks','auditLogs','users'];
+const SYNC_TABLES=['banks','questions','answers','wrongBook','papers','examRecords','shares','paperShares','favorites','importTasks','practiceProgress','auditLogs','users'];
 const SYNC_META=['settings','builtinCategories','builtinBanks'];
 
 function emptyDB(settings){
   return {settings:settings||{openRegister:true,quotaMB:1024,maxFileMB:35,maxSheets:30,maxRows:10000,maxPerImport:20000,shareEnabled:true,wrongThreshold:2},
     users:[],banks:[],questions:[],answers:[],wrongBook:[],papers:[],examRecords:[],
-    shares:[],paperShares:[],favorites:[],importTasks:[],auditLogs:[],practiceSessions:{},builtinCategories:[],builtinBanks:[],session:null};
+    shares:[],paperShares:[],favorites:[],importTasks:[],practiceProgress:[],auditLogs:[],builtinCategories:[],builtinBanks:[],session:null};
 }
 async function api(path,opts){
   let r;
@@ -336,7 +336,7 @@ function layout(content,active){
       <div class="foot">👤 ${esc(u.nickname||u.username)} · ${u.role==='admin'?'管理员':'普通用户'}<br><a id="logoutLink">退出登录</a></div>
     </aside>
     <div style="flex:1;min-width:0">
-      <div class="topbar"><div class="brand-mark" style="width:30px;height:30px;font-size:14px">刷</div><strong>刷题宝</strong><span style="flex:1"></span><span class="small muted">${esc(u.nickname||u.username)}</span></div>
+      <div class="topbar"><div class="brand-mark" style="width:30px;height:30px;font-size:14px">刷</div><strong>刷题宝</strong><span class="small muted" style="flex:1;min-width:0;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.nickname||u.username)}</span><button class="btn sm ghost" id="logoutTop" style="color:var(--red);flex:0 0 auto">退出登录</button></div>
       <main class="main"><div class="wrap">${content}</div></main>
     </div>
     <nav class="bottom-nav">${navHtml}</nav>
@@ -344,7 +344,8 @@ function layout(content,active){
 }
 function bindLayout(){
   $$('.nav-item[data-h]').forEach(b=>b.onclick=()=>{location.hash=b.dataset.h;});
-  const lo=$('#logoutLink');if(lo)lo.onclick=()=>{apiPost('auth',{action:'logout'}).catch(()=>{}).finally(()=>{location.hash='#/login';location.reload();});};
+  const doLogout=()=>{apiPost('auth',{action:'logout'}).catch(()=>{}).finally(()=>{location.hash='#/login';location.reload();});};
+  [$('#logoutLink'),$('#logoutTop')].forEach(el=>{if(el)el.onclick=doLogout;});
 }
 function render(html,active){$('#app').innerHTML=layout(html,active);bindLayout();window.scrollTo(0,0);}
 function renderRaw(html){$('#app').innerHTML=html;window.scrollTo(0,0);}
