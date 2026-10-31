@@ -1,12 +1,12 @@
 'use strict';
 /* ================= 模拟考试 ================= */
-let EX={banks:[],counts:{single:5,multi:2,judge:5,blank:2},scores:{single:1,multi:2,judge:1,blank:2},chaps:[],diffs:[],duration:90,passPct:60,name:''};
+let EX={banks:[],counts:{single:5,multi:2,judge:5,blank:2,essay:2},scores:{single:1,multi:2,judge:1,blank:2,essay:0},chaps:[],diffs:[],duration:90,passPct:60,name:''};
 let examTimer=null;
 route('#/exam/setup',()=>{
   if(!requireAuth())return;
   const urlBank=(location.hash.match(/bank=([^&]+)/)||[])[1];
   const readable=readableBanks().filter(b=>bankQuestions(b.id).length>0);
-  EX={banks:urlBank?[urlBank]:[],counts:{single:5,multi:2,judge:5,blank:2},scores:{single:1,multi:2,judge:1,blank:2},chaps:[],diffs:[],duration:90,passPct:60,name:'模拟试卷 '+fmtTime(nowTs()).slice(5)};
+  EX={banks:urlBank?[urlBank]:[],counts:{single:5,multi:2,judge:5,blank:2,essay:2},scores:{single:1,multi:2,judge:1,blank:2,essay:0},chaps:[],diffs:[],duration:90,passPct:60,name:'模拟试卷 '+fmtTime(nowTs()).slice(5)};
   render(`<div class="btn-row" style="margin-bottom:12px"><button class="btn ghost" onclick="location.hash='#/papers'">← 返回试卷列表</button></div>
     <h1 class="page-title">生成模拟试卷</h1><div class="page-sub">从自有与共享题库中抽题，生成固定快照试卷；各题型题量与每题分值均可自定义，多选全对得分</div>
     <div class="card">
@@ -17,7 +17,7 @@ route('#/exam/setup',()=>{
       <div class="field"><label>题型、题量与每题分值（仅显示所选题库中实际存在的题型）</label>
         <div class="inline-fields" id="exCounts"></div>
         <div class="hint" id="exScoreSum"></div>
-        <div class="hint">简答题不进入自动判分试卷</div>
+        <div class="hint">简答题为主观题，可进入试卷但不自动判分、不计入总分，交卷后可对照参考答案</div>
       </div>
       <div class="inline-fields">
         <div class="field"><label>章节范围</label><select class="input" id="exChap" multiple size="4"></select><div class="hint">按住 Ctrl 多选；不选即全部</div></div>
@@ -32,32 +32,45 @@ route('#/exam/setup',()=>{
       <div id="exGap"></div>
       <div class="modal-foot" style="justify-content:flex-end"><button class="btn primary lg" id="exGen">生成试卷</button></div>
     </div>`,'#/papers');
-  const ALL_TYPES=['single','multi','judge','blank'];
-  const DEF_COUNTS={single:5,multi:2,judge:5,blank:2};
-  const DEF_SCORES={single:1,multi:2,judge:1,blank:2};
+  const ALL_TYPES=['single','multi','judge','blank','essay'];
+  const DEF_COUNTS={single:5,multi:2,judge:5,blank:2,essay:2};
+  const DEF_SCORES={single:1,multi:2,judge:1,blank:2,essay:0};
+  const scoreOf=t=>(t==='essay'?0:(EX.scores[t]??DEF_SCORES[t]));
   const readCountInputs=()=>{ // 同步输入框到 EX，供切换题库/筛选时保留用户已填数值
     $$('.ex-count').forEach(i=>{EX.counts[i.dataset.t]=Math.max(0,+i.value||0);});
     $$('.ex-score').forEach(i=>{EX.scores[i.dataset.t]=Math.max(0.5,+i.value||1);});
+    EX.scores.essay=0; // 简答题不计分
   };
   const updateScoreSum=()=>{
-    const total=ALL_TYPES.reduce((a,t)=>a+(EX.counts[t]||0)*(EX.scores[t]||1),0);
+    const total=ALL_TYPES.reduce((a,t)=>a+(EX.counts[t]||0)*scoreOf(t),0);
     const el=$('#exScoreSum');if(el)el.textContent=total>0?`预计满分：${Math.round(total*10)/10} 分（及格线按总分的百分比折算）`:'';
   };
   /* 题型行按当前题库实际拥有的题型渲染，题库没有的题型不出现 */
+  const autoZero=new Set(); // 记录因题库无该题型而被自动归零的题型，题型重新出现时恢复默认题量
   const renderTypeRows=pool=>{
     const by={};ALL_TYPES.forEach(t=>by[t]=pool.filter(q=>q.type===t).length);
     const types=ALL_TYPES.filter(t=>by[t]>0);
-    ALL_TYPES.forEach(t=>{if(by[t]<=0)EX.counts[t]=0;});
+    ALL_TYPES.forEach(t=>{
+      if(by[t]<=0){EX.counts[t]=0;autoZero.add(t);}
+      else if(autoZero.has(t)){EX.counts[t]=DEF_COUNTS[t];autoZero.delete(t);}
+    });
     const box=$('#exCounts');if(!box)return;
     if(!types.length){
-      box.innerHTML='<div class="hint">所选题库中暂无可用于自动判分的题目（简答题不参与抽题）</div>';
+      box.innerHTML='<div class="hint">所选题库中暂无可用于抽题的题目，请检查题库范围或筛选条件</div>';
       updateScoreSum();return;
     }
     box.innerHTML=types.map(t=>{
       const maxN=by[t];
       const cnt=Math.min(EX.counts[t]??DEF_COUNTS[t],maxN);
       EX.counts[t]=cnt;
-      const sc=EX.scores[t]??DEF_SCORES[t];
+      if(t==='essay'){ // 简答题只设置题量，不计分
+        return `<div class="field"><label class="small">${TYPES[t]} <span class="muted">(可用 ${maxN})</span></label>
+          <div style="display:flex;align-items:center;gap:4px">
+            <input class="input ex-count" data-t="essay" type="number" min="0" max="${maxN}" value="${cnt}" style="width:64px" title="题量">
+            <span class="small muted nowrap">题 · 主观题不计分</span>
+          </div></div>`;
+      }
+      const sc=scoreOf(t);
       return `<div class="field"><label class="small">${TYPES[t]} <span class="muted">(可用 ${maxN})</span></label>
         <div style="display:flex;align-items:center;gap:4px">
           <input class="input ex-count" data-t="${t}" type="number" min="0" max="${maxN}" value="${cnt}" style="width:64px" title="题量">
@@ -75,7 +88,6 @@ route('#/exam/setup',()=>{
     const selDiffs=[...($('#exDiff')?$('#exDiff').selectedOptions:[])].map(o=>o.value);
     let pool=[];
     EX.banks.forEach(bid=>{if(canReadBank(bankById(bid)))pool=pool.concat(bankQuestions(bid));});
-    pool=pool.filter(q=>q.type!=='essay');
     if(selChaps.length)pool=pool.filter(q=>selChaps.some(c=>chapterMatch(q.chapter,c)));
     if(selDiffs.length)pool=pool.filter(q=>selDiffs.includes(q.difficulty));
     const seen=new Set();pool=pool.filter(q=>{const k=dedupeKey(q);if(seen.has(k))return false;seen.add(k);return true;});
@@ -147,7 +159,7 @@ route('#/exam/run/:rid',rid=>{
     </div>
     <div class="progress-line"><i style="width:${cur/total*100}%"></i></div>
     <div class="q-card">
-      <div class="meta" style="display:flex;gap:6px;flex-wrap:wrap"><span class="tag gray">第 ${cur+1} 题</span>${typeTag(q.type)}${diffTag(q.difficulty)}<span class="tag amber">${q.score} 分</span></div>
+      <div class="meta" style="display:flex;gap:6px;flex-wrap:wrap"><span class="tag gray">第 ${cur+1} 题</span>${typeTag(q.type)}${diffTag(q.difficulty)}${q.type==='essay'?'<span class="tag amber">主观题 · 不计分</span>':`<span class="tag amber">${q.score} 分</span>`}</div>
       <div class="q-stem">${esc(q.stem)}</div>
       <div id="exAns"></div>
       <div class="btn-row" style="margin-top:16px">
@@ -242,15 +254,17 @@ route('#/exam/result/:rid',rid=>{
   const qs=(Array.isArray(rec.questions)&&rec.questions.length)?rec.questions:paper.questions;
   const total=qs.length;
   const used=Math.round(((rec.submittedAt||nowTs())-rec.startedAt)/1000);
-  let rightN=0;const per={};
+  let rightN=0,gradedN=0;const per={};
   qs.forEach(q=>{
     const a=rec.answers[q.qid];
+    per[q.type]=per[q.type]||{total:0,right:0,wrong:0,undone:0,pending:0};
+    per[q.type].total++;if(!a)per[q.type].undone++;
+    if(q.type==='essay'){if(a)per[q.type].pending++;return;} // 主观题不自动判分
+    gradedN++;
     const right=a?gradeAnswer({type:q.type,answer:q.answer},a.content):false;
-    if(right)rightN++;
-    per[q.type]=per[q.type]||{total:0,right:0,wrong:0,undone:0};
-    per[q.type].total++;if(!a)per[q.type].undone++;else if(right)per[q.type].right++;else per[q.type].wrong++;
+    if(right){rightN++;per[q.type].right++;}else per[q.type].wrong++;
   });
-  const acc=total?Math.round(rightN/total*1000)/10:0;
+  const acc=gradedN?Math.round(rightN/gradedN*1000)/10:0;
   const pass=rec.score>=paper.passScore;
   const randOn=!!(paper.config&&paper.config.randomOnRetake);
   const ansText=(q,c)=>{
@@ -265,12 +279,13 @@ route('#/exam/result/:rid',rid=>{
       <div class="stat"><b>${acc}%</b><span>正确率</span></div>
       <div class="stat"><b style="color:${pass?'var(--green)':'var(--red)'}">${pass?'及格':'未及格'}</b><span>及格线 ${paper.passScore} 分</span></div>
       <div class="stat"><b style="color:var(--green)">${rightN}</b><span>答对</span></div>
-      <div class="stat"><b style="color:var(--red)">${total-rightN}</b><span>答错/未答</span></div>
+      <div class="stat"><b style="color:var(--red)">${gradedN-rightN}</b><span>答错/未答</span></div>
     </div>
     <div class="card"><h4 style="margin-bottom:8px">题型拆分</h4>
       <div class="table-wrap"><table><thead><tr><th>题型</th><th>题量</th><th>答对</th><th>答错</th><th>未答</th><th>得分</th></tr></thead><tbody>
       ${Object.entries(per).map(([t,p])=>{const sq=qs.find(x=>x.type===t);const sc=sq?sq.score:1;
-        return `<tr><td>${TYPES[t]}</td><td>${p.total}</td><td>${p.right}</td><td>${p.wrong}</td><td>${p.undone}</td><td>${Math.round(p.right*sc*10)/10} / ${Math.round(p.total*sc*10)/10}</td></tr>`;}).join('')}
+        const isEssay=t==='essay';
+        return `<tr><td>${TYPES[t]}${isEssay?'<span class="tag gray">主观题</span>':''}</td><td>${p.total}</td><td>${isEssay?'—':p.right}</td><td>${isEssay?'—':p.wrong}</td><td>${p.undone}</td><td>${isEssay?'0 / 0':`${Math.round(p.right*sc*10)/10} / ${Math.round(p.total*sc*10)/10}`}</td></tr>`;}).join('')}
       </tbody></table></div></div>
     <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <h4>逐题解析</h4><label class="small" style="cursor:pointer"><input type="checkbox" id="onlyWrong"> 只看错题</label></div>
@@ -284,13 +299,14 @@ route('#/exam/result/:rid',rid=>{
   const renderList=(onlyWrong)=>{
     $('#qList').innerHTML=qs.map((q,i)=>{
       const a=rec.answers[q.qid];
-      const right=a?gradeAnswer({type:q.type,answer:q.answer},a.content):false;
-      if(onlyWrong&&right)return'';
+      const isEssay=q.type==='essay';
+      const right=isEssay?null:(a?gradeAnswer({type:q.type,answer:q.answer},a.content):false);
+      if(onlyWrong&&(right===true||isEssay))return'';
       return `<div style="border-top:1px solid var(--line);padding:12px 0">
-        <div class="meta" style="display:flex;gap:6px;margin-bottom:6px"><span class="tag gray">第 ${i+1} 题</span>${typeTag(q.type)}${right?'<span class="tag green">答对</span>':'<span class="tag red">答错</span>'}</div>
+        <div class="meta" style="display:flex;gap:6px;margin-bottom:6px"><span class="tag gray">第 ${i+1} 题</span>${typeTag(q.type)}${isEssay?'<span class="tag amber">主观题 · 不计分</span>':right?'<span class="tag green">答对</span>':'<span class="tag red">答错</span>'}</div>
         <div style="font-weight:600;margin-bottom:6px">${esc(q.stem)}</div>
         ${(q.options||[]).map(o=>`<div class="small" style="padding:2px 0;${String(q.answer).includes(o.k)?'color:var(--green);font-weight:600':''}">${o.k}. ${esc(o.t)}</div>`).join('')}
-        <div class="small" style="margin-top:6px">我的答案：${ansText(q,a?a.content:null)} ｜ 正确答案：<strong>${esc(q.answer)}</strong></div>
+        <div class="small" style="margin-top:6px">我的答案：${ansText(q,a?a.content:null)} ｜ ${isEssay?'参考答案':'正确答案'}：<strong>${esc(q.answer||'（略）')}</strong></div>
         <div class="small muted" style="margin-top:4px">解析：${esc(q.analysis||'暂无解析')}</div>
       </div>`;}).join('')||'<p class="muted small">全部答对，没有错题 🎉</p>';
   };

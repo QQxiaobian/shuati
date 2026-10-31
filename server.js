@@ -694,7 +694,7 @@ function drawQuestions(cfg, uid, u, opts) {
   const chaps = Array.isArray(cfg.chaps) ? cfg.chaps.filter(x => typeof x === 'string') : [];
   const diffs = Array.isArray(cfg.diffs) ? cfg.diffs.filter(x => typeof x === 'string') : [];
   if (!bankIds.length) return { ok: false, error: '请至少选择 1 个题库' };
-  const types = ['single', 'multi', 'judge', 'blank'];
+  const types = ['single', 'multi', 'judge', 'blank', 'essay'];
   let totalWanted = 0;
   for (const t of types) totalWanted += Math.max(0, toInt(counts[t], 0));
   if (totalWanted < 1) return { ok: false, error: '总题量至少为 1 题' };
@@ -713,7 +713,6 @@ function drawQuestions(cfg, uid, u, opts) {
   const pool = [];
   for (const r of db.prepare(`SELECT data FROM questions WHERE bank_id IN (${ph})`).all(...visibleBids)) {
     const q = JSON.parse(r.data);
-    if ((q.type || '') === 'essay') continue;
     if (chaps.length) {
       const qc = q.chapter || '未设置章节';
       if (!chaps.some(c => qc === c || qc.startsWith(c + '/'))) continue;
@@ -732,7 +731,7 @@ function drawQuestions(cfg, uid, u, opts) {
     seen.add(key); dedup.push(q);
   }
 
-  const byType = { single: [], multi: [], judge: [], blank: [] };
+  const byType = { single: [], multi: [], judge: [], blank: [], essay: [] };
   for (const q of dedup) if (byType[q.type]) byType[q.type].push(q);
 
   const gaps = [];
@@ -743,7 +742,8 @@ function drawQuestions(cfg, uid, u, opts) {
     const av = shuffle(byType[t]);
     if (av.length < want) gaps.push({ t, want, have: av.length });
     else {
-      const sc = Math.max(0.5, Number(scores[t] ?? 1));
+      // 简答题为主观题：可入卷但不自动判分、不计入总分
+      const sc = t === 'essay' ? 0 : Math.max(0.5, Number(scores[t] ?? 1));
       for (const q of av.slice(0, want)) picked.push({ q, score: sc });
     }
   }
@@ -894,6 +894,7 @@ async function handleExamSubmit(req, res) {
     const wrongOnce = new Set();
     const answers = (rec.answers && typeof rec.answers === 'object' && !Array.isArray(rec.answers)) ? rec.answers : {};
     for (const q of qs) {
+      if ((q.type || '') === 'essay') continue; // 主观题不自动判分、不计分、不加入错题本
       const a = answers[q.qid] ?? null;
       const content = (a && typeof a === 'object') ? (a.content ?? '') : '';
       const right = a ? gradeQ(q.type, q.answer ?? '', content) : false;
