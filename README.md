@@ -1,10 +1,10 @@
 # 刷题宝 使用说明
 
-PHP + MySQL 的多用户刷题系统：题库导入、五种练习方式、错题本、模拟考试（服务端判分防作弊）、搜题、题库分享与管理后台。数据集中保存在 MySQL 数据库中，多人共用、换设备自动同步。
+Node.js + SQLite 的多用户刷题系统：题库导入、五种练习方式、错题本、模拟考试（服务端判分防作弊）、搜题、题库分享与管理后台。数据集中保存在 SQLite 数据库中，多人共用、换设备自动同步，无需 MySQL 和 PHP。
 
 ## 部署（Docker，推荐）
 
-只需一个 `docker-compose.yml`，无需手动 clone 代码或导入 SQL：首次启动时 Compose 会自动从 GitHub `docker` 分支下载源码构建镜像，并自动建库建表、创建默认管理员。需要已安装 Docker 与 Docker Compose v2。
+只需一个 `docker-compose.yml`，无需手动 clone 代码、无需 MySQL：首次启动时 Compose 会自动从 GitHub `docker` 分支下载源码构建镜像，启动时自动创建 SQLite 数据库与默认管理员。需要已安装 Docker 与 Docker Compose v2。
 
 1. 新建一个目录，放入本仓库的 `docker-compose.yml`（也可直接下载）：
 
@@ -19,30 +19,34 @@ PHP + MySQL 的多用户刷题系统：题库导入、五种练习方式、错�
 
    首次会自动下载源码并构建镜像；以后直接 `docker compose up -d` 即可启动，无需重新下载。
 3. 浏览器访问 `http://服务器IP:8870`，默认管理员 `admin / admin123`（登录后请尽快修改密码）。
-4. 数据保存在 Docker 卷 `shutibao_db_data` 中，删除/重建容器不会丢失；仅 `docker compose down -v` 会清空。
-5. 需要自定义密码时，在同目录新建 `.env`：
+4. 数据保存在 Docker 卷 `shutibao_app_data`（容器内 `/data/shutibao.db`），删除/重建容器不会丢失；仅 `docker compose down -v` 会清空。
+5. 需要自定义管理员账号时，在同目录新建 `.env`：
 
    ```dotenv
-   DB_PASS=你的数据库密码
+   ADMIN_USERNAME=admin
    ADMIN_PASSWORD=你的管理员初始密码
    ```
 
    修改 `ADMIN_PASSWORD` 只影响首次初始化，不会重置已有管理员密码。
+6. 基础镜像默认走 DaoCloud 镜像源（`docker.m.daocloud.io`），避免部分 NAS 的 `docker.io` 加速器返回 401 导致构建失败。若该源不可用，可在 `.env` 中覆盖：
 
-> 不安装 Docker 时，继续使用下方 phpStudy 方式；Docker 部署无需访问 `api/install.php`。
+   ```dotenv
+   NODE_IMAGE=docker.1ms.run/library/node:24-alpine
+   ```
 
-## 部署（phpStudy 环境）
+   也可以改回官方镜像 `node:24-alpine`，前提是本机 Docker 镜像加速器可用。
 
-1. 安装并启动 **phpStudy**（https://phpstudy.cn 下载），在面板中启动 **Nginx/Apache** 与 **MySQL**。
-2. 把本目录（`shutibao`）整个放到网站目录，或直接在 phpStudy 中新建网站指向本目录：
-   - phpStudy 默认网站根目录一般为 `phpstudy_pro/WWW`，即放成 `phpstudy_pro/WWW/shutibao`。
-3. 如修改过 MySQL 的 root 密码，编辑 `api/config.php` 同步修改（默认 `root` / `root`）。
-4. 浏览器打开初始化页面：`http://localhost/shutibao/api/install.php`
-   - 自动创建数据库 `shutibao` 与全部数据表；
-   - 按页面提示点击按钮创建默认管理员 `admin / admin123`。
-5. 打开 `http://localhost/shutibao/` 登录使用。局域网内其他电脑把 `localhost` 换成你的内网 IP 即可访问。
+> 从旧版 PHP + MySQL 升级时不会自动迁移原数据库；如需保留旧数据，请先自行导出，或在旧系统里导出题库后重新导入。
 
-> 旧版（纯静态 localStorage）数据：首次登录新版后，系统会自动把本机旧题库迁移到服务器（仅迁移当前登录账号自己的题库与练习数据），迁移完成后清除浏览器旧数据。
+## 本地运行（可选，无需 Docker）
+
+需要 Node.js 24+（使用内置 `node:sqlite`），项目没有第三方依赖：
+
+```bash
+node server.js
+```
+
+默认可访问 `http://localhost:3000`，数据库写入 `./data/shutibao.db`。可通过环境变量覆盖 `PORT`、`DB_PATH`、`ADMIN_USERNAME`、`ADMIN_PASSWORD`。
 
 ## 功能一览
 
@@ -109,7 +113,7 @@ PHP + MySQL 的多用户刷题系统：题库导入、五种练习方式、错�
 
 ## 数据与隐私
 
-- 全部数据保存在服务器 MySQL 数据库 `shutibao` 中，多用户共用、换设备自动同步；
+- 全部数据保存在服务器 SQLite 文件（Docker 内 `/data/shutibao.db`）中，多用户共用、换设备自动同步；
 - 密码以不可逆哈希存储；登录错误 5 次锁定 10 分钟；
 - 进行中的练习进度保存在本机浏览器（`localStorage`），其他数据均在服务器；
 - 分享采用服务端授权：题库所有者撤销后，接收方立即不可见。
@@ -117,4 +121,4 @@ PHP + MySQL 的多用户刷题系统：题库导入、五种练习方式、错�
 ## 技术栈
 
 - 前端：原生 HTML/CSS/JS，hash 路由单页应用；表格解析使用 SheetJS（CDN 加载）。
-- 后端：PHP（PDO）+ MySQL，REST 接口位于 `api/` 目录；首次部署用 `api/install.php` 一键建库建表。
+- 后端：Node.js 24 + 内置 `node:sqlite`，零第三方依赖；接口为 `/api/auth`、`/api/sync`、`/api/exam/create`、`/api/exam/submit`，启动时自动建表并创建默认管理员。

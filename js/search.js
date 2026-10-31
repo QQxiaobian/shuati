@@ -65,6 +65,7 @@ function searchResultsHTML(){
       <div class="btn-row" style="margin-top:8px">
         <button class="btn sm primary" data-one="${q.id}">练这题</button>
         <button class="btn sm ghost" data-locbank="${b.id}">定位题库</button>
+        <button class="btn sm ghost" data-favq="${q.id}">${isFav(q.id)?'★ 已收藏':'☆ 收藏'}</button>
       </div>
     </div>`).join('')}
     ${pager(all.length,SQ.page,per,p=>{SQ.page=p;$('#sqResults').innerHTML=searchResultsHTML();bindResults();window.scrollTo(0,0);})}`;
@@ -72,4 +73,9 @@ function searchResultsHTML(){
 function bindResults(){
   $$('[data-one]').forEach(b=>b.onclick=()=>location.hash='#/practice/one/'+b.dataset.one);
   $$('[data-locbank]').forEach(b=>b.onclick=()=>location.hash='#/bank/'+b.dataset.locbank);
+  $$('[data-favq]').forEach(b=>b.onclick=()=>{
+    const q=questionById(b.dataset.favq);if(!q)return;
+    const on=toggleFav(q);toast(on?'已收藏':'已取消收藏','ok');
+    $('#sqResults').innerHTML=searchResultsHTML();bindResults();
+  });
 }

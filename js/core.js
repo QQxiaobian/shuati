@@ -17,18 +17,18 @@ function hashPwd(s){ // cyrb53 不可逆哈希 + 盐（纯前端演示级）
 /* ================= 数据层（服务器同步 + 本地缓存） ================= */
 let DB=null;
 let BASE=null; // 上次与服务器一致时的行哈希基线 {table:{id:hash}, settings/builtin*:hash}
-const SYNC_TABLES=['banks','questions','answers','wrongBook','papers','examRecords','shares','importTasks','auditLogs','users'];
+const SYNC_TABLES=['banks','questions','answers','wrongBook','papers','examRecords','shares','paperShares','favorites','importTasks','practiceProgress','auditLogs','users'];
 const SYNC_META=['settings','builtinCategories','builtinBanks'];
 
 function emptyDB(settings){
   return {settings:settings||{openRegister:true,quotaMB:1024,maxFileMB:35,maxSheets:30,maxRows:10000,maxPerImport:20000,shareEnabled:true,wrongThreshold:2},
     users:[],banks:[],questions:[],answers:[],wrongBook:[],papers:[],examRecords:[],
-    shares:[],importTasks:[],auditLogs:[],practiceSessions:{},builtinCategories:[],builtinBanks:[],session:null};
+    shares:[],paperShares:[],favorites:[],importTasks:[],practiceProgress:[],auditLogs:[],builtinCategories:[],builtinBanks:[],session:null};
 }
 async function api(path,opts){
   let r;
   try{r=await fetch('api/'+path,{credentials:'same-origin',...opts});}
-  catch(e){throw new Error('无法连接服务器，请确认 phpStudy 已启动');}
+  catch(e){throw new Error('无法连接服务器，请确认服务已启动');}
   const j=await r.json().catch(()=>({ok:false,error:'服务器响应异常（HTTP '+r.status+'）'}));
   if(r.status===401&&DB){DB.session=null;if(location.hash!=='#/login'&&location.hash!=='#/register'){location.hash='#/login';}}
   return j;
@@ -62,7 +62,7 @@ function saveDB(){ // 写穿透：防抖 350ms 合并高频修改（保持原有
 window.addEventListener('beforeunload',()=>{ // 关页面前尽力冲刷未推送的修改
   if(!saveTimer||!DB||!DB.session||!BASE)return;
   const d=buildDiff();if(!d)return;
-  try{navigator.sendBeacon('api/sync.php',new Blob([JSON.stringify(d)],{type:'application/json'}));}catch(e){}
+  try{navigator.sendBeacon('api/sync',new Blob([JSON.stringify(d)],{type:'application/json'}));}catch(e){}
 });
 async function pushDiff(){
   const d0=buildDiff();
@@ -75,8 +75,8 @@ async function pushDiff(){
     else jobs.push({[t]:v});});return jobs;};
   const upJobs=mkJobs(up);
   upJobs.sort((a,b)=>((a.banks||a.users||a.settings)?0:1)-((b.banks||b.users||b.settings)?0:1));
-  for(const u2 of upJobs){const r=await apiPost('sync.php',{upserts:u2,deletes:{}});if(!r.ok)throw new Error(r.error||'保存失败');}
-  for(const d2 of mkJobs(del)){const r=await apiPost('sync.php',{upserts:{},deletes:d2});if(!r.ok)throw new Error(r.error||'保存失败');}
+  for(const u2 of upJobs){const r=await apiPost('sync',{upserts:u2,deletes:{}});if(!r.ok)throw new Error(r.error||'保存失败');}
+  for(const d2 of mkJobs(del)){const r=await apiPost('sync',{upserts:{},deletes:d2});if(!r.ok)throw new Error(r.error||'保存失败');}
   baseline();
 }
 async function flushSave(){ // 立即推送未保存的修改（交卷/生成试卷前调用）
@@ -86,7 +86,7 @@ async function flushSave(){ // 立即推送未保存的修改（交卷/生成试
   await pushChain;
 }
 async function fullSync(){
-  const r=await apiGet('sync.php');
+  const r=await apiGet('sync');
   if(!r.ok)throw new Error(r.error||'同步失败');
   DB=r.db;DB.session={userId:r.user.id};baseline();
 }
@@ -261,6 +261,24 @@ function refreshWrongValidity(){ // 题目删除/分享撤销后标记失效
   });
   saveDB();
 }
+/* ================= 收藏 ================= */
+function isFav(qid){const u=currentUser();return !!(u&&DB.favorites.some(f=>f.userId===u.id&&f.questionId===qid));}
+function toggleFav(q){ // 返回切换后的收藏状态
+  const u=currentUser();if(!u||!q)return false;
+  const ex=DB.favorites.find(f=>f.userId===u.id&&f.questionId===q.id);
+  if(ex){DB.favorites=DB.favorites.filter(f=>f.id!==ex.id);saveDB();return false;}
+  DB.favorites.push({id:uid(),userId:u.id,questionId:q.id,bankId:q.bankId,createdAt:nowTs()});
+  saveDB();return true;
+}
+function myFavorites(){
+  const u=currentUser();if(!u)return [];
+  return DB.favorites.filter(f=>f.userId===u.id).sort((a,b)=>b.createdAt-a.createdAt);
+}
+/* ================= 试卷 ================= */
+function paperById(id){return DB.papers.find(p=>p.id===id);}
+function myPapers(){const u=currentUser();return DB.papers.filter(p=>u&&p.userId===u.id);}
+function sharedPapers(){const u=currentUser();return DB.papers.filter(p=>u&&p.userId!==u.id);}
+function paperShareFor(paper,userId){return DB.paperShares.find(s=>s.paperId===paper.id&&s.status==='active'&&s.targetUserId===userId);}
 /* ================= UI 组件 ================= */
 function toast(msg,type){
   const box=$('#toastBox');const el=document.createElement('div');
@@ -301,8 +319,9 @@ function srcTag(s){return {manual:'<span class="tag gray">手动</span>',import:
 const NAV=[
   {h:'#/banks',t:'题库',i:'📚'},
   {h:'#/wrongbook',t:'错题本',i:'✏️'},
-  {h:'#/exam/setup',t:'模拟考试',i:'📝'},
+  {h:'#/papers',t:'模拟考试',i:'📝'},
   {h:'#/exams',t:'考试记录',i:'🗂️'},
+  {h:'#/favorites',t:'收藏',i:'⭐'},
   {h:'#/search',t:'搜题',i:'🔍'},
 ];
 function layout(content,active){
@@ -317,7 +336,7 @@ function layout(content,active){
       <div class="foot">👤 ${esc(u.nickname||u.username)} · ${u.role==='admin'?'管理员':'普通用户'}<br><a id="logoutLink">退出登录</a></div>
     </aside>
     <div style="flex:1;min-width:0">
-      <div class="topbar"><div class="brand-mark" style="width:30px;height:30px;font-size:14px">刷</div><strong>刷题宝</strong><span style="flex:1"></span><span class="small muted">${esc(u.nickname||u.username)}</span></div>
+      <div class="topbar"><div class="brand-mark" style="width:30px;height:30px;font-size:14px">刷</div><strong>刷题宝</strong><span class="small muted" style="flex:1;min-width:0;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.nickname||u.username)}</span><button class="btn sm ghost" id="logoutTop" style="color:var(--red);flex:0 0 auto">退出登录</button></div>
       <main class="main"><div class="wrap">${content}</div></main>
     </div>
     <nav class="bottom-nav">${navHtml}</nav>
@@ -325,7 +344,8 @@ function layout(content,active){
 }
 function bindLayout(){
   $$('.nav-item[data-h]').forEach(b=>b.onclick=()=>{location.hash=b.dataset.h;});
-  const lo=$('#logoutLink');if(lo)lo.onclick=()=>{apiPost('auth.php',{action:'logout'}).catch(()=>{}).finally(()=>{location.hash='#/login';location.reload();});};
+  const doLogout=()=>{apiPost('auth',{action:'logout'}).catch(()=>{}).finally(()=>{location.hash='#/login';location.reload();});};
+  [$('#logoutLink'),$('#logoutTop')].forEach(el=>{if(el)el.onclick=doLogout;});
 }
 function render(html,active){$('#app').innerHTML=layout(html,active);bindLayout();window.scrollTo(0,0);}
 function renderRaw(html){$('#app').innerHTML=html;window.scrollTo(0,0);}
@@ -340,11 +360,11 @@ function dispatch(){
 async function boot(){
   renderRaw('<div class="auth-page"><div class="auth-card"><h1>刷题宝</h1><div class="sub">正在连接服务器…</div></div></div>');
   try{
-    const r=await apiGet('sync.php');
+    const r=await apiGet('sync');
     if(r.ok){DB=r.db;DB.session={userId:r.user.id};baseline();migrateLegacy();}
     else DB=emptyDB(r.settings);
   }catch(e){
-    renderRaw(`<div class="auth-page"><div class="auth-card"><h1>无法连接服务器</h1><div class="sub">${esc(e.message)}<br>请确认 phpStudy 已启动（Apache/Nginx + MySQL），且本站部署在 phpStudy 的网站目录中。</div><button class="btn primary lg" style="width:100%;justify-content:center" onclick="location.reload()">重新连接</button></div></div>`);
+    renderRaw(`<div class="auth-page"><div class="auth-card"><h1>无法连接服务器</h1><div class="sub">${esc(e.message)}<br>请确认刷题宝服务已启动。</div><button class="btn primary lg" style="width:100%;justify-content:center" onclick="location.reload()">重新连接</button></div></div>`);
     return;
   }
   window.addEventListener('hashchange',dispatch);dispatch();
@@ -367,7 +387,7 @@ route('#/login',()=>{
     if(!name||!pwd)return fail('请输入用户名和密码');
     $('#lgBtn').disabled=true;
     try{
-      const r=await apiPost('auth.php',{action:'login',username:name,pwd:hashPwd(pwd)});
+      const r=await apiPost('auth',{action:'login',username:name,pwd:hashPwd(pwd)});
       if(!r.ok)return fail(r.error||'登录失败');
       DB=r.db;DB.session={userId:r.user.id};baseline();migrateLegacy();
       if(r.user.mustChangePwd){location.hash='#/changepwd';toast('请修改临时密码后再使用系统','warn');}
@@ -401,7 +421,7 @@ route('#/register',()=>{
     if(nick&&(nick.length<1||nick.length>30))return fail('昵称 1–30 个字符');
     $('#rgBtn').disabled=true;
     try{
-      const r=await apiPost('auth.php',{action:'register',username:name,nickname:nick,pwd:hashPwd(p1)});
+      const r=await apiPost('auth',{action:'register',username:name,nickname:nick,pwd:hashPwd(p1)});
       if(!r.ok)return fail(r.error||'注册失败');
       toast('注册成功，请登录','ok');location.hash='#/login';
     }catch(e){fail(e.message);}
@@ -426,7 +446,7 @@ route('#/changepwd',()=>{
     if(p1!==p2)return fail('两次输入不一致');
     $('#cpBtn').disabled=true;
     try{
-      const r=await apiPost('auth.php',{action:'changepwd',old:u.mustChangePwd?'':hashPwd($('#cpOld').value),pwd:hashPwd(p1)});
+      const r=await apiPost('auth',{action:'changepwd',old:u.mustChangePwd?'':hashPwd($('#cpOld').value),pwd:hashPwd(p1)});
       if(!r.ok)return fail(r.error||'修改失败');
       toast('密码已修改，请重新登录','ok');
       setTimeout(()=>{location.hash='#/login';location.reload();},600);

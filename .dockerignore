@@ -3,6 +3,10 @@
 .uploads
 doc
 trae-html-share-packages
-1.txt
+data
+*.db
+*.db-wal
+*.db-shm
 *.xlsx
 *.zip
+1.txt
